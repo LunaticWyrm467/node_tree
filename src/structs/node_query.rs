@@ -1,5 +1,4 @@
-use crate::MutableArc;
-use crate::traits::node::Node;
+use crate::traits::node::DynNode;
 
 
 /// A Node Query either contains a reference to a dynamic Node object, or it is empty. It is the
@@ -7,7 +6,7 @@ use crate::traits::node::Node;
 /// type.
 #[derive(Clone)]
 pub enum NodeQuery {
-    Some(MutableArc<dyn Node>),
+    Some(DynNode),
     None
 }
 
@@ -16,7 +15,7 @@ impl NodeQuery {
     /// Attempts to unwrap the NodeQuery.
     /// # Panics
     /// Panics if the NodeQuery is empty.
-    pub fn unwrap(self) -> MutableArc<dyn Node> {
+    pub fn unwrap(self) -> DynNode {
         match self {
             NodeQuery::Some(rtr) => rtr,
             NodeQuery::None      => panic!("Attempted to unwrap an empty NodeQuery!")

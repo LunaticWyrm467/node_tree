@@ -1,15 +1,14 @@
+use std::sync::MutexGuard;
+
 use crate::MutableArc;
 use crate::structs::{ node_tree::{ NodeTree, ProcessMode }, node_query::NodeQuery };
 use super::dynamic::Dynamic;
 
 
 mod private {
-    use std::sync::MutexGuard;
-
-    use crate::MutableArc;
     use crate::structs::{ node_path::NodePath, node_query::NodeQuery };
     use crate::utils::functions::ensure_unique_name;
-    use super::{ NodeAbstract, Node };
+    use super::{ NodeAbstract, DynNode, NodeMutex };
 
     
     /// Contains sealed methods that should not be overriden for the Node trait.
@@ -21,8 +20,8 @@ mod private {
         /// Returns false if the operation fails.
         fn set_name(&mut self, name: &str) -> bool {
             if let NodeQuery::Some(parent) = self.parent() {
-                let mut is_unique: bool                      = true;
-                let     neighbors: Vec<MutableArc<dyn Node>> = parent.lock().unwrap().children().iter().map(|a| a.to_owned()).collect();
+                let mut is_unique: bool         = true;
+                let     neighbors: Vec<DynNode> = parent.lock().unwrap().children().iter().map(|a| a.to_owned()).collect();
 
                 for neighbor in neighbors {
                     let neighbor_name: String = neighbor.lock().unwrap().name().to_string();
@@ -78,12 +77,12 @@ mod private {
         /// node's children vector.
         /// If this node is connected to the node tree, then `_ready()` will automatically be
         /// propogated throughout its ranks.
-        fn add_child(&mut self, node: MutableArc<dyn Node>) -> () {
+        fn add_child(&mut self, node: DynNode) -> () {
 
             // Ensure that the child's name within the context of this node's children is unique.
-            let     names_of_children: Vec<String>          = self.children().iter().map(|c| c.lock().unwrap().name().to_string()).collect();
-            let mut node_locked:       MutexGuard<dyn Node> = node.lock().unwrap();
-            let     node_name:         String               = node_locked.name().to_string();
+            let     names_of_children: Vec<String> = self.children().iter().map(|c| c.lock().unwrap().name().to_string()).collect();
+            let mut node_locked:       NodeMutex   = node.lock().unwrap();
+            let     node_name:         String      = node_locked.name().to_string();
 
             unsafe {
                 node_locked.set_name_unchecked(&ensure_unique_name(&node_name, names_of_children))
@@ -97,7 +96,7 @@ mod private {
             self.children_mut().push(node);
 
             if self.in_tree() {
-                let mut child: MutexGuard<dyn Node> = self.children()[self.num_children() - 1].lock().unwrap();
+                let mut child: NodeMutex = self.children()[self.num_children() - 1].lock().unwrap();
                 unsafe {
                     child.set_owner(self.owner().unwrap());   // For now, we just propagate the root as the owner for all nodes.
                 }
@@ -123,8 +122,8 @@ mod private {
             match next_node {
                 Some(target) => {
                     for node in self.children() {
-                        let node_unlocked: MutexGuard<dyn Node> = node.lock().unwrap();
-                        if  node_unlocked.name() == target {
+                        let node_unlocked: NodeMutex = node.lock().unwrap();
+                        if node_unlocked.name() == target {
                             return node_unlocked.get_node(path);
                         }
                     }
@@ -138,14 +137,14 @@ mod private {
         /// This is used to handle a lot of the scene tree behaviour.
         /// # Note
         /// Nodes that are at the beginning of the children vector will be prioritized.
-        fn top_down(&mut self) -> Vec<MutableArc<dyn Node>> {
-            let mut iter: Vec<_> = Vec::new();
+        fn top_down(&mut self) -> Vec<DynNode> {
+            let mut iter: Vec<DynNode> = Vec::new();
             self.top_down_tail(&mut iter);
             iter
         }
 
         /// The tail end recursive function for the `top_down` method.
-        fn top_down_tail(&mut self, iter: &mut Vec<MutableArc<dyn Node>>) -> () {
+        fn top_down_tail(&mut self, iter: &mut Vec<DynNode>) -> () {
             *iter = iter.iter().chain(self.children()).map(|a| a.to_owned()).collect();
             for child in self.children() {
                 *iter = iter.iter().chain(child.lock().unwrap().children()).map(|a| a.to_owned()).collect();
@@ -154,16 +153,16 @@ mod private {
 
         /// Produces a reverse bottom-up order iteration of all of the nodes connected to this node.
         /// This is typically used to initialize nodes or scenes of nodes.
-        fn bottom_up(&mut self) -> Vec<MutableArc<dyn Node>> {
-            let mut iter:  Vec<_> = Vec::new();
-            let     layer: Vec<_> = self.gather_deepest();
+        fn bottom_up(&mut self) -> Vec<DynNode> {
+            let mut iter:  Vec<DynNode> = Vec::new();
+            let     layer: Vec<DynNode> = self.gather_deepest();
             self.bottom_up_tail(&mut iter, layer);
             iter
         }
 
         /// This gathers the deepest nodes in the tree.
-        fn gather_deepest(&mut self) -> Vec<MutableArc<dyn Node>> {
-            let mut deepest_nodes: Vec<MutableArc<dyn Node>> = Vec::new();
+        fn gather_deepest(&mut self) -> Vec<DynNode> {
+            let mut deepest_nodes: Vec<DynNode> = Vec::new();
             for node in self.children() {
                 deepest_nodes.append(&mut node.lock().unwrap().gather_deepest());
             }
@@ -173,11 +172,11 @@ mod private {
         /// The tail end recursive function for the `bottom_up` method.
         /// Due to how this functions, this function call doesn't actually call itself on different
         /// layers of the node tree, but it rather calls itself.
-        fn bottom_up_tail(&mut self, iter: &mut Vec<MutableArc<dyn Node>>, layer: Vec<MutableArc<dyn Node>>) -> () {
+        fn bottom_up_tail(&mut self, iter: &mut Vec<DynNode>, layer: Vec<DynNode>) -> () {
 
             // Define a function to filter out duplicates.
-            fn filter_duplicates(arr: Vec<MutableArc<dyn Node>>) -> Vec<MutableArc<dyn Node>> {
-                let mut unique: Vec<MutableArc<dyn Node>> = Vec::new();
+            fn filter_duplicates(arr: Vec<DynNode>) -> Vec<DynNode> {
+                let mut unique: Vec<DynNode> = Vec::new();
                 for item in arr {
                     let mut is_unique: bool = true;
 
@@ -199,7 +198,7 @@ mod private {
             }
 
             // We get the next layer by getting the node's parents and filtering out duplicates.
-            let next_layer: Vec<MutableArc<dyn Node>> = filter_duplicates(layer.iter().map(|node| node.lock().unwrap().parent().unwrap()).collect());
+            let next_layer: Vec<DynNode> = filter_duplicates(layer.iter().map(|node| node.lock().unwrap().parent().unwrap()).collect());
             for node in layer {
                 iter.push(node);
             }
@@ -217,12 +216,19 @@ mod private {
 impl <T: NodeAbstract> private::NodeSealed for T {}
 
 
+/// In order to make the code more readable, we use this type name instead of MutableArc<dyn Node>.
+pub type DynNode = MutableArc<dyn Node>;
+
+/// In order to make the code more readable, we use this type name instead of MutexGuard<dyn Node>.
+pub type NodeMutex<'a> = MutexGuard<'a, dyn Node>;
+
+
 /// This implements of of the node's abstract behaviours.
 /// This, along with `Node` must be implemented in order to create a new node.
 pub trait NodeAbstract: Dynamic + Send + Sync {
     
     /// Gets this as a dynamic Node object.
-    fn as_dyn(&self) -> MutableArc<dyn Node>;
+    fn as_dyn(&self) -> DynNode;
 
     /// Gets the name of the node.
     /// Each name must be unique within the context of the parent's children vector.
@@ -253,21 +259,21 @@ pub trait NodeAbstract: Dynamic + Send + Sync {
 
     /// Sets the owner of the node.
     /// This should only be implemented, but not used manually.
-    unsafe fn set_owner(&mut self, owner: MutableArc<dyn Node>) -> ();
+    unsafe fn set_owner(&mut self, owner: DynNode) -> ();
 
     /// Gets the direct parent of this node.
     fn parent(&self) -> NodeQuery;
 
     /// Sets the parent of this node.
     /// This should only be implemented, but not used manually.
-    unsafe fn set_parent(&mut self, parent: MutableArc<dyn Node>) -> ();
+    unsafe fn set_parent(&mut self, parent: DynNode) -> ();
 
 
     /// Gets a vector of this node's children.
-    fn children(&self) -> &Vec<MutableArc<dyn Node>>;
+    fn children(&self) -> &Vec<DynNode>;
     
     /// Gets a mutable vector of this node's children.
-    fn children_mut(&self) -> &mut Vec<MutableArc<dyn Node>>;
+    fn children_mut(&self) -> &mut Vec<DynNode>;
 }
 
 
