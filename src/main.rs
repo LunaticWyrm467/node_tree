@@ -7,8 +7,6 @@ use std::sync::{ Arc, Mutex };
 pub type MutableArc<T> = Arc<Mutex<T>>;
 
 // TODO:
-// - Hook up the owner nodes during scene initialization before ready() is called.
-// - Have the parent be connected when a child node is added.
 // - Implement global ready() and process() calls in the Node Tree.
 
 
