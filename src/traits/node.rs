@@ -1,12 +1,14 @@
 use std::sync::MutexGuard;
 
 use crate::MutableArc;
-use crate::structs::{ node_tree::{ NodeTree, ProcessMode }, node_query::NodeQuery };
+use crate::structs::node_base::NodeBase;
+use crate::structs::node_tree::ProcessMode;
 use super::dynamic::Dynamic;
 
 
 mod private {
-    use crate::structs::{ node_path::NodePath, node_query::NodeQuery };
+    use crate::MutableArc;
+    use crate::structs::{ node_path::NodePath, node_tree::NodeTree, node_query::NodeQuery };
     use crate::utils::functions::ensure_unique_name;
     use super::{ NodeAbstract, DynNode, NodeMutex };
 
@@ -14,6 +16,12 @@ mod private {
     /// Contains sealed methods that should not be overriden for the Node trait.
     pub trait NodeSealed: NodeAbstract {
         
+        /// Gets the name of the node.
+        /// Each name must be unique within the context of the parent's children vector.
+        fn name(&self) -> &str {
+            self.base().name()
+        }
+
         /// Sets the name of the node.
         /// This will fail if the name is not unique within the context of the parent's children
         /// vector.
@@ -46,6 +54,68 @@ mod private {
                 }
                 true
             }
+        }
+
+        /// Sets the name of the node without checking if the name is unique.
+        /// This should only be implemented, but not used manually.
+        unsafe fn set_name_unchecked(&mut self, name: &str) -> () {
+            self.base_mut().set_name_unchecked(name);
+        }
+
+        /// Gets the reference to the root NodeTree structure, which controls the entire tree.
+        /// This will return None if the node is not connected to the NodeTree.
+        fn root(&self) -> Option<MutableArc<NodeTree>> {
+            self.base().root()
+        }
+
+        /// Sets the reference to the root NodeTree structure.
+        unsafe fn set_root(&mut self, root: MutableArc<NodeTree>) -> () {
+            self.base_mut().set_root(root);
+        }
+
+        /// Gets the owner of the node.
+        /// The owner is different from the parent. The owner can be thought as the root of the scene
+        /// that this node is a part of, rather than the node's actual parent.
+        /// In other words, if you had a node tree that looked like this:
+        /// ```text
+        /// ... <Higher Nodes>
+        /// ╰NodeA <Root of Saved Scene>
+        ///  ├NodeB
+        ///  ╰NodeC
+        ///   ╰NodeD
+        ///```
+        /// And you were to call `owner()` on `NodeD`, you would get `NodeA`.
+        /// # Note
+        /// You can only have an owner on a node that is a part of a node tree.
+        fn owner(&self) -> NodeQuery {
+            self.base().owner()
+        }
+
+        /// Sets the owner of the node.
+        /// This should only be implemented, but not used manually.
+        unsafe fn set_owner(&mut self, owner: DynNode) -> () {
+            self.base_mut().set_owner(owner);
+        }
+
+        /// Gets the direct parent of this node.
+        fn parent(&self) -> NodeQuery {
+            self.base().parent()
+        }
+
+        /// Sets the parent of this node.
+        /// This should only be implemented, but not used manually.
+        unsafe fn set_parent(&mut self, parent: DynNode) -> () {
+            self.base_mut().set_parent(parent);
+        }
+
+        /// Gets a vector of this node's children.
+        fn children(&self) -> &Vec<DynNode> {
+            self.base().children()
+        }
+
+        /// Gets a mutable vector of this node's children.
+        fn children_mut(&mut self) -> &mut Vec<DynNode> {
+            self.base_mut().children_mut()
         }
 
         /// Returns true if this node is a stray node with no parent or owner.
@@ -83,16 +153,15 @@ mod private {
             let     names_of_children: Vec<String> = self.children().iter().map(|c| c.lock().unwrap().name().to_string()).collect();
             let mut node_locked:       NodeMutex   = node.lock().unwrap();
             let     node_name:         String      = node_locked.name().to_string();
-
+            
+            // Add the child to this node's children and connect it to its parent and owner nodes,
+            // as well as the root tree structure's reference.
             unsafe {
-                node_locked.set_name_unchecked(&ensure_unique_name(&node_name, names_of_children))
+                node_locked.set_name_unchecked(&ensure_unique_name(&node_name, names_of_children));
+                node_locked.set_parent(self.as_dyn());
+                node_locked.set_root(self.root().clone().expect("Parent does not have a root reference set!"));
             }
             drop(node_locked);
-
-            // Add the child to this node's children and connect it to its parent and owner nodes.
-            unsafe {
-                node.lock().unwrap().set_parent(self.as_dyn());
-            }
             self.children_mut().push(node);
 
             if self.in_tree() {
@@ -216,10 +285,10 @@ mod private {
 impl <T: NodeAbstract> private::NodeSealed for T {}
 
 
-/// In order to make the code more readable, we use this type name instead of MutableArc<dyn Node>.
+/// In order to make the code more readable, we use this type alias instead of MutableArc<dyn Node>.
 pub type DynNode = MutableArc<dyn Node>;
 
-/// In order to make the code more readable, we use this type name instead of MutexGuard<dyn Node>.
+/// In order to make the code more readable, we use this type alias instead of MutexGuard<dyn Node>.
 pub type NodeMutex<'a> = MutexGuard<'a, dyn Node>;
 
 
@@ -230,50 +299,11 @@ pub trait NodeAbstract: Dynamic + Send + Sync {
     /// Gets this as a dynamic Node object.
     fn as_dyn(&self) -> DynNode;
 
-    /// Gets the name of the node.
-    /// Each name must be unique within the context of the parent's children vector.
-    fn name(&self) -> &str;
+    /// Returns a reference to the base Node object.
+    fn base(&self) -> &NodeBase;
 
-    /// Sets the name of the node without checking if the name is unique.
-    /// This should only be implemented, but not used manually.
-    unsafe fn set_name_unchecked(&mut self, name: &str) -> ();
-
-    /// Gets the reference to the root NodeTree structure, which controls the entire tree.
-    fn root(&self) -> MutableArc<NodeTree>;
-
-    /// Gets the owner of the node.
-    /// The owner is different from the parent. The owner can be thought as the root of the scene
-    /// that this node is a part of, rather than the node's actual parent.
-    /// In other words, if you had a node tree that looked like this:
-    /// ```text
-    /// ... <Higher Nodes>
-    /// ╰NodeA <Root of Saved Scene>
-    ///  ├NodeB
-    ///  ╰NodeC
-    ///   ╰NodeD
-    ///```
-    /// And you were to call `owner()` on `NodeD`, you would get `NodeA`.
-    /// # Note
-    /// You can only have an owner on a node that is a part of a node tree.
-    fn owner(&self) -> NodeQuery;
-
-    /// Sets the owner of the node.
-    /// This should only be implemented, but not used manually.
-    unsafe fn set_owner(&mut self, owner: DynNode) -> ();
-
-    /// Gets the direct parent of this node.
-    fn parent(&self) -> NodeQuery;
-
-    /// Sets the parent of this node.
-    /// This should only be implemented, but not used manually.
-    unsafe fn set_parent(&mut self, parent: DynNode) -> ();
-
-
-    /// Gets a vector of this node's children.
-    fn children(&self) -> &Vec<DynNode>;
-    
-    /// Gets a mutable vector of this node's children.
-    fn children_mut(&self) -> &mut Vec<DynNode>;
+    /// Returns a mutable reference to the base Node object.
+    fn base_mut(&mut self) -> &mut NodeBase;
 }
 
 

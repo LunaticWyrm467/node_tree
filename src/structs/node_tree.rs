@@ -1,6 +1,6 @@
-use std::time::{ Instant, Duration };
+use std::{ sync::{ Arc, Mutex, MutexGuard }, time::{ Duration, Instant } };
 
-use crate::traits::node::{ DynNode, NodeMutex };
+use crate::{ traits::node::{ DynNode, NodeMutex }, MutableArc };
 
 
 #[derive(Debug, Clone, PartialEq)]
@@ -30,18 +30,28 @@ pub struct NodeTree {
 impl NodeTree {
     
     /// Creates a new NodeTree with the given root node.
-    pub fn new(root: DynNode) -> Self {
+    /// Due to the nature of the NodeTree, it must be wrapped in a Arc<Mutex<T>>.
+    pub fn new(root: DynNode) -> MutableArc<Self> {
         
-        // Since this is the root node, it's 'owner' will be itself.
-        // It will also have no parent.
-        unsafe {
-            root.lock().unwrap().set_owner(root.clone());
-        }
-
-        NodeTree {
+        // Create the base NodeTree.
+        let node_tree: MutableArc<NodeTree> = Arc::new(Mutex::new(NodeTree {
             root,
             status: TreeStatus::Idle
+        }));
+
+
+        // Since this is the root node, it's 'owner' will be itself.
+        // It will also have no parent.
+        let     tree_guard: MutexGuard<NodeTree> = node_tree.lock().unwrap();
+        let mut root_guard: NodeMutex            = tree_guard.root.lock().unwrap();
+        unsafe {
+            root_guard.set_root(node_tree.clone());
+            root_guard.set_owner(tree_guard.root.clone());
         }
+        drop(root_guard);
+        drop(tree_guard);
+
+        node_tree
     }
 
     /// Runs the starting process behaviour -
