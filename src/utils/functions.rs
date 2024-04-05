@@ -2,12 +2,40 @@
 /// Ensures that the name provided is unique relative to the list of other names.
 /// If it is not, then it will create a new unique name.
 pub fn ensure_unique_name(name: &str, relative_to: Vec<String>) -> String {
-    
+    fn extract_numerical_suffix(s: &str) -> Option<usize> {
+        let mut numerics: String = String::new();
+        let mut ptr:      usize  = s.len() - 1;
+        
+        loop {
+            let char: char = s.get(ptr..(ptr + 1)).unwrap().chars().collect::<Vec<_>>()[0];
+            if !char.is_numeric() {
+                break;
+            }
+            numerics = char.to_string() + &numerics;
+            
+            if ptr == 0 {
+                break;
+            }
+            ptr -= 1;
+        }
+
+        if numerics.is_empty() {
+            return None;
+        }
+        Some(numerics.parse::<usize>().unwrap())
+    }
+
+    // Special Case:
+    // If the 'relative_to' array is empty, then return the name.
+    if relative_to.is_empty() {
+        return name.to_string();
+    }
+
     // Strip the name bare of any numerical suffix.
     let given_value:         Option<usize> = extract_numerical_suffix(name);
     let name_without_suffix: String        = match given_value {
         Some(number) => name.split_at(name.find(&format!("{}", number)).unwrap()).0.to_string(),
-        None         => String::new()
+        None         => name.to_string()
     };
     
     // Search for any similar names that have the same beginning but different suffixes.
@@ -32,32 +60,8 @@ pub fn ensure_unique_name(name: &str, relative_to: Vec<String>) -> String {
     // suffix.
     // Otherwise, give it the closest numerical suffix to the one it currently has (counting
     // upwards).
-    fn extract_numerical_suffix(s: &str) -> Option<usize> {
-        let mut numerics: String = String::new();
-        let mut ptr:      usize  = s.len() - 1;
-        
-        loop {
-            let char: char = s.get(ptr..(ptr + 1)).unwrap().chars().collect::<Vec<_>>()[0];
-            if !char.is_numeric() {
-                break;
-            }
-            numerics = char.to_string() + &numerics;
-            
-            if ptr == 0 {
-                break;
-            }
-            ptr -= 1;
-        }
-
-        if numerics.is_empty() {
-            return None;
-        }
-        Some(numerics.parse::<usize>().unwrap())
-    }
-    
-    let mut new_value:          usize  = given_value.unwrap_or(0);
-    let     values:         Vec<usize> = similar_names.iter().map(|n| extract_numerical_suffix(n).unwrap_or(0)).collect(); // If there are no numerical suffixes on similar names,
-                                                                                                                           // then we give them a baseline value.
+    let mut new_value: usize      = given_value.unwrap_or(0);
+    let     values:    Vec<usize> = similar_names.iter().map(|n| extract_numerical_suffix(n).unwrap_or(0)).collect(); // If there are no numerical suffixes on similar names,
     loop {
         for value in values {
             if new_value == value {

@@ -4,7 +4,7 @@ use crate::traits::node::DynNode;
 /// A Node Query either contains a reference to a dynamic Node object, or it is empty. It is the
 /// programmer's responsibility to handle cases where the pointer is empty or of the wrong node
 /// type.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum NodeQuery {
     Some(DynNode),
     None

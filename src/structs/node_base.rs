@@ -1,4 +1,5 @@
-use crate::MutableArc;
+use std::{fmt::Write, rc::Rc};
+
 use crate::traits::node::DynNode;
 use super::{ node_query::NodeQuery, node_tree::NodeTree };
 
@@ -6,25 +7,28 @@ use super::{ node_query::NodeQuery, node_tree::NodeTree };
 
 /// Holds all of the node's internal information such as its name, children, parent, and owner.
 /// Also allows for the modification of the node's internal state.
+/// # Note
+/// This does not derive from the Debug macro, but rather implements Debug manually to avoid
+/// issues with recursion whilst debug printing.
 pub struct NodeBase {
     name:     String,
     parent:   NodeQuery,
     owner:    NodeQuery,
-    root:     Option<MutableArc<NodeTree>>,
+    root:     Option<Rc<NodeTree>>,
     children: Vec<DynNode>
 }
 
 impl NodeBase {
 
     /// Creates a new NodeBase instance with no parent, owner, or root.
-    pub fn new(name: String) -> Self {
-        NodeBase {
+    pub fn new(name: String) -> Rc<Self> {
+        Rc::new(NodeBase {
             name,
             parent:   NodeQuery::None,
             owner:    NodeQuery::None,
             root:     None,
             children: Vec::new()
-        }
+        })
     }
 
     /// Gets the name of the node.
@@ -41,12 +45,12 @@ impl NodeBase {
 
     /// Gets the reference to the root NodeTree structure, which controls the entire tree.
     /// This will return None if the node is not connected to the NodeTree.
-    pub fn root(&self) -> Option<MutableArc<NodeTree>> {
+    pub fn root(&self) -> Option<Rc<NodeTree>> {
         self.root.clone()
     }
 
     /// Sets the reference to the root NodeTree structure.
-    pub unsafe fn set_root(&mut self, root: MutableArc<NodeTree>) -> () {
+    pub unsafe fn set_root(&mut self, root: Rc<NodeTree>) -> () {
         self.root = Some(root);
     }
 
@@ -93,5 +97,24 @@ impl NodeBase {
     /// Gets a mutable vector of this node's children.
     pub fn children_mut(&mut self) -> &mut Vec<DynNode> {
         &mut self.children
+    }
+}
+
+impl std::fmt::Debug for NodeBase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("Inner[{}] {{ ", self.name))?;
+        
+        if let NodeQuery::Some(parent) = &self.parent {
+            f.write_str(&format!("Parent: {}, ", parent.clone().name()))?;
+        }
+        if let NodeQuery::Some(owner) = &self.owner {
+            f.write_str(&format!("Owner: {}, ", owner.clone().name()))?;
+        }
+
+        f.write_str(&format!("Connected to Tree: {}, ", self.root.is_some()))?;
+        f.write_str(&format!("Children: {:?}", self.children()))?;
+        f.write_str("}")?;
+
+        Ok(())
     }
 }
