@@ -1,5 +1,6 @@
-use std::{ rc::Rc, time::{ Duration, Instant } };
+use std::time::{ Duration, Instant };
 
+use crate::structs::high_pointer::Hp;
 use crate::traits::node::DynNode;
 
 
@@ -32,10 +33,10 @@ impl NodeTree {
     
     /// Creates a new NodeTree with the given root node.
     /// Due to the nature of the NodeTree, it must be wrapped in a Arc<Mutex<T>>.
-    pub fn new(root: DynNode) -> Rc<Self> {
+    pub fn new(root: DynNode) -> Hp<Self> {
         
         // Create the base NodeTree.
-        let node_tree: Rc<NodeTree> = Rc::new(NodeTree {
+        let node_tree: Hp<NodeTree> = Hp::new(NodeTree {
             root,
             status: TreeStatus::Idle
         });
@@ -43,8 +44,8 @@ impl NodeTree {
         // Since this is the root node, it's 'owner' will be itself.
         // It will also have no parent.
         unsafe {
-            node_tree.clone().root.clone().set_root(node_tree.clone());
-            node_tree.clone().root.clone().set_owner(node_tree.root.clone());
+            node_tree.root.set_root(node_tree);
+            node_tree.root.set_owner(node_tree.root);
         }
 
         node_tree
@@ -52,13 +53,12 @@ impl NodeTree {
 
     /// Runs the starting process behaviour -
     /// (any code under all initialized node's `ready()` functions).
-    pub fn start(self: Rc<Self>) -> () {
-        for node in self.root.clone().bottom_up(true) {
+    pub fn start(mut self: Hp<Self>) -> () {
+        for node in self.root.bottom_up(true) {
             node.ready();
         }
         
-        let mut mut_self: Rc<Self> = self.clone();
-        unsafe { Rc::get_mut_unchecked(&mut mut_self).status = TreeStatus::Running; }
+        self.status = TreeStatus::Running;
     }
 
     /// Runs the process behaviour of the Node Tree -
@@ -68,7 +68,7 @@ impl NodeTree {
     /// # Panics
     /// This function will panic if the start() function hasn't ran before this function was
     /// called.
-    pub fn process(self: Rc<Self>) -> () {
+    pub fn process(self: Hp<Self>) -> () {
         let mut now: Instant = Instant::now();
         loop {
 
@@ -78,7 +78,7 @@ impl NodeTree {
             now = Instant::now();
             
             // Process the node tree recursively.
-            self.clone().process_tail(self.root.clone(), delta, ProcessMode::Pausable);
+            self.process_tail(self.root, delta, ProcessMode::Pausable);
             
             // If the tree is queued for termination, then quit the program.
             if self.status == TreeStatus::Terminated {
@@ -90,16 +90,15 @@ impl NodeTree {
     /// Calls to this function results in the program terminting.
     /// This doesn't terminate the program itself, rather it just queues the program for
     /// self-termination.
-    pub fn queue_termination(self: Rc<Self>) -> () {
-        let mut mut_self: Rc<Self> = self.clone();
-        unsafe { Rc::get_mut_unchecked(&mut mut_self).status = TreeStatus::Terminated; }
+    pub fn queue_termination(mut self: Hp<Self>) -> () {
+        self.status = TreeStatus::Terminated;
     }
 
     /// The recursive tail-end of the process function which traverses down the node tree.
-    fn process_tail(self: Rc<Self>, node: DynNode, delta: f32, inherited_process_mode: ProcessMode) -> () {
+    fn process_tail(self: Hp<Self>, node: DynNode, delta: f32, inherited_process_mode: ProcessMode) -> () {
         
         // Determine the process mode.
-        let mut process_mode: ProcessMode = node.clone().process_mode();
+        let mut process_mode: ProcessMode = node.process_mode();
         if process_mode == ProcessMode::Inherit {
             process_mode = inherited_process_mode;
         }
@@ -112,8 +111,8 @@ impl NodeTree {
             TreeStatus::Running => {
                 match process_mode {
                     ProcessMode::Inherit  => panic!("Inherited process mode not set!"),
-                    ProcessMode::Always   => node.clone().process(delta),
-                    ProcessMode::Pausable => node.clone().process(delta),
+                    ProcessMode::Always   => node.process(delta),
+                    ProcessMode::Pausable => node.process(delta),
                     ProcessMode::Inverse  => ()
                 }
             },
@@ -121,20 +120,20 @@ impl NodeTree {
             TreeStatus::Paused => {
                 match process_mode {
                     ProcessMode::Inherit  => panic!("Inherited process mode not set!"),
-                    ProcessMode::Always   => node.clone().process(delta),
+                    ProcessMode::Always   => node.process(delta),
                     ProcessMode::Pausable => (),
-                    ProcessMode::Inverse  => node.clone().process(delta)
+                    ProcessMode::Inverse  => node.process(delta)
                 }
             }
 
             TreeStatus::Terminated => {
-                node.clone().terminal();
+                node.terminal();
             }
         }
 
         // Go through each of the children and process them, perpetuating the recursive cycle.
-        for node in node.clone().children() {
-            self.clone().process_tail(node.to_owned(), delta, process_mode.clone());
+        for node in node.children() {
+            self.process_tail(node, delta, process_mode.clone());
         }
     }
 }

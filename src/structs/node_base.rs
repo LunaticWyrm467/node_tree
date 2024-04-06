@@ -1,7 +1,7 @@
-use std::{fmt::Write, rc::Rc};
+use std::rc::Rc;
 
 use crate::traits::node::DynNode;
-use super::{ node_query::NodeQuery, node_tree::NodeTree };
+use super::{ high_pointer::Hp, node_query::NodeQuery, node_tree::NodeTree };
 
 
 
@@ -14,7 +14,7 @@ pub struct NodeBase {
     name:     String,
     parent:   NodeQuery,
     owner:    NodeQuery,
-    root:     Option<Rc<NodeTree>>,
+    root:     Option<Hp<NodeTree>>,
     children: Vec<DynNode>
 }
 
@@ -45,12 +45,12 @@ impl NodeBase {
 
     /// Gets the reference to the root NodeTree structure, which controls the entire tree.
     /// This will return None if the node is not connected to the NodeTree.
-    pub fn root(&self) -> Option<Rc<NodeTree>> {
-        self.root.clone()
+    pub fn root(&self) -> Option<Hp<NodeTree>> {
+        self.root
     }
 
     /// Sets the reference to the root NodeTree structure.
-    pub unsafe fn set_root(&mut self, root: Rc<NodeTree>) -> () {
+    pub unsafe fn set_root(&mut self, root: Hp<NodeTree>) -> () {
         self.root = Some(root);
     }
 
