@@ -116,6 +116,18 @@ pub mod private {
         fn children(self: Hp<Self>) -> Vec<DynNode> {
             self.base().children().to_owned()
         }
+
+        /// Gets the node's depth in the `NodeTree`.
+        fn depth(self: Hp<Self>) -> usize {
+            self.base().depth()
+        }
+
+        /// Sets the node's depth in the `NodeTree`.
+        /// This should only be implemented, but not used manually.
+        unsafe fn set_depth(self: Hp<Self>, depth: usize) -> () {
+            let mut base: Rc<NodeBase> = self.base();
+            Rc::get_mut_unchecked(&mut base).set_depth(depth);
+        }
         
         /// Returns true if this node is a stray node with no parent or owner.
         fn is_stray(self: Hp<Self>) -> bool {
@@ -158,6 +170,7 @@ pub mod private {
                 node.set_name_unchecked(&ensure_unique_name(&node_name, names_of_children));
                 node.set_parent(self.as_dyn());
                 node.set_root(self.root().expect("Parent does not have a root reference set!"));
+                node.set_depth(self.depth() + 1);   // This is the only place where depth is updated.
                 self.add_child_unchecked(node);
             }
 

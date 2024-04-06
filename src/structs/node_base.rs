@@ -15,7 +15,8 @@ pub struct NodeBase {
     parent:   NodeQuery,
     owner:    NodeQuery,
     root:     Option<Hp<NodeTree>>,
-    children: Vec<DynNode>
+    children: Vec<DynNode>,
+    depth:    usize   // How far the Node is within the tree.
 }
 
 impl NodeBase {
@@ -27,7 +28,8 @@ impl NodeBase {
             parent:   NodeQuery::None,
             owner:    NodeQuery::None,
             root:     None,
-            children: Vec::new()
+            children: Vec::new(),
+            depth:    0
         })
     }
 
@@ -98,6 +100,16 @@ impl NodeBase {
     pub fn children_mut(&mut self) -> &mut Vec<DynNode> {
         &mut self.children
     }
+
+    /// Gets the node's depth.
+    pub fn depth(&self) -> usize {
+        self.depth
+    }
+
+    /// Sets the node's depth.
+    pub unsafe fn set_depth(&mut self, depth: usize) -> () {
+        self.depth = depth;
+    }
 }
 
 impl std::fmt::Debug for NodeBase {
@@ -105,14 +117,15 @@ impl std::fmt::Debug for NodeBase {
         f.write_str(&format!("Inner[{}] {{ ", self.name))?;
         
         if let NodeQuery::Some(parent) = &self.parent {
-            f.write_str(&format!("Parent: {}, ", parent.clone().name()))?;
+            f.write_str(&format!("Parent: {}, ", parent.name()))?;
         }
         if let NodeQuery::Some(owner) = &self.owner {
-            f.write_str(&format!("Owner: {}, ", owner.clone().name()))?;
+            f.write_str(&format!("Owner: {}, ", owner.name()))?;
         }
 
         f.write_str(&format!("Connected to Tree: {}, ", self.root.is_some()))?;
-        f.write_str(&format!("Children: {:?}", self.children()))?;
+        f.write_str(&format!("Children: {:?}, ", &self.children))?;
+        f.write_str(&format!("Depth: {} ", self.depth))?;
         f.write_str("}")?;
 
         Ok(())
