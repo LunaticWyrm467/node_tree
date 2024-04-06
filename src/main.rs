@@ -50,10 +50,11 @@ impl Node for NodeA {
             self.add_child(NodeA::new("Node".to_string()));
             self.add_child(NodeA::new("Node".to_string()));
         }
+        println!("{:?}", self.children());
     }
 
     fn process(self: Hp<Self>, delta: f32) -> () {
-        println!("{} | {}", self.name(), delta);
+        //println!("{} | {}", self.name(), delta);
     }
 }
 

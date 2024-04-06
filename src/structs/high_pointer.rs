@@ -81,8 +81,12 @@ impl <T: ?Sized, A: Allocator> Clone for Hp<T, A> {
 
 impl <T: ?Sized, A: Allocator> Copy for Hp<T, A> {}
 
-impl <T: ?Sized, A: Allocator> std::fmt::Debug for Hp<T, A> {
+impl <T: ?Sized + std::fmt::Debug, A: Allocator> std::fmt::Debug for Hp<T, A> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("Hp {{ {:?} }}", *self))
+        unsafe {
+            Rc::increment_strong_count(self.0);   // We do this not to invalidate the data that we are to access.
+            let rc: Rc<T> = Rc::from_raw(self.0);
+            f.write_str(&format!("Hp {{ {:?} }}", rc.as_ref()))
+        }
     }
 }
