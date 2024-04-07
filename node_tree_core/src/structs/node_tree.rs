@@ -17,6 +17,7 @@ pub enum TreeStatus {
     Idle,
     Running,
     Paused,
+    QueuedTermination,
     Terminated
 }
 
@@ -81,7 +82,7 @@ impl NodeTree {
             self.process_tail(self.root, delta, ProcessMode::Pausable);
             
             // If the tree is queued for termination, then quit the program.
-            if self.status == TreeStatus::Terminated {
+            if self.status == TreeStatus::QueuedTermination || self.status == TreeStatus::Terminated {
                 break;
             }
         }
@@ -91,6 +92,11 @@ impl NodeTree {
     /// This doesn't terminate the program itself, rather it just queues the program for
     /// self-termination.
     pub fn queue_termination(mut self: Hp<Self>) -> () {
+        self.status = TreeStatus::QueuedTermination;
+    }
+
+    /// Immediately terminates the program without running any termination behaviours.
+    pub fn terminate(mut self: Hp<Self>) -> () {
         self.status = TreeStatus::Terminated;
     }
 
@@ -126,14 +132,16 @@ impl NodeTree {
                 }
             }
 
-            TreeStatus::Terminated => {
-                node.terminal();
-            }
+            TreeStatus::QueuedTermination => node.terminal(),
+            TreeStatus::Terminated        => ()
         }
 
         // Go through each of the children and process them, perpetuating the recursive cycle.
         for node in node.children() {
             self.process_tail(node, delta, process_mode.clone());
+            if self.status == TreeStatus::Terminated {
+                break;
+            }
         }
     }
 }

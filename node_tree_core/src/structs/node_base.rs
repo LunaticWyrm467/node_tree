@@ -56,6 +56,12 @@ impl NodeBase {
         self.root = Some(root);
     }
 
+    /// Disconnects the NodeTree from this node.
+    /// This should only be implemented, but not used manually.
+    pub unsafe fn disconnnect_root(&mut self) -> () {
+        self.root = None;
+    }
+
     /// Gets the owner of the node.
     /// The owner is different from the parent. The owner can be thought as the root of the scene
     /// that this node is a part of, rather than the node's actual parent.
@@ -80,6 +86,12 @@ impl NodeBase {
         self.owner = NodeQuery::Some(owner);
     }
 
+    /// Disconnects this node's owner from this node.
+    /// This should only be implemented, but not used manually.
+    pub unsafe fn disconnnect_owner(&mut self) -> () {
+        self.owner = NodeQuery::None;
+    }
+
     /// Gets the direct parent of this node.
     pub fn parent(&self) -> NodeQuery {
         self.parent.clone()
@@ -89,6 +101,12 @@ impl NodeBase {
     /// This should only be implemented, but not used manually.
     pub unsafe fn set_parent(&mut self, parent: DynNode) -> () {
         self.parent = NodeQuery::Some(parent);
+    }
+
+    /// Disconnects this node's parent from this node.
+    /// This should only be implemented, but not used manually.
+    pub unsafe fn disconnnect_parent(&mut self) -> () {
+        self.parent = NodeQuery::None;
     }
 
     /// Gets a vector of this node's children.

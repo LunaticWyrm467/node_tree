@@ -13,6 +13,9 @@ use std::ops::{ CoerceUnsized, Deref, DerefMut, DispatchFromDyn };
 /// *cannot* be shared through threads.
 /// This should not be used outside of the context of the NodeTree since the NodeTree is designed
 /// with shared mutability in mind.
+///
+/// # Note
+/// These pointers do not destroy the data they have allocated automatically, rather they must be destroyed manually.
 pub struct Hp<T: ?Sized, A: Allocator = Global>(*const T, PhantomData<A>);
 
 
@@ -28,6 +31,17 @@ impl <T: Sized> Hp<T> {
         let pointer:    *const T = Rc::into_raw(initial_rc);   // Use Rc::from_raw to destroy stuff
         
         Hp(pointer, PhantomData)
+    }
+}
+
+impl <T: ?Sized> Hp<T> {
+
+    /// Destroys the pointer and its allocated memory.
+    /// # Safety
+    /// It is YOUR responsibility to ensure that all connected references are destroyed alongside
+    /// this pointer.
+    pub unsafe fn destroy(self) -> () {
+        let _: Rc<T> = Rc::from_raw(self.0);   // Let Rc<T> handle the destruction for us.
     }
 }
 

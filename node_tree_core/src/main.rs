@@ -8,13 +8,17 @@ use prelude::*;
 
 pub mod prelude {
     pub use std::rc::Rc;
-    pub use crate::structs::{ high_pointer::Hp, node_base::NodeBase, node_path::NodePath, node_tree::NodeTree };
+    pub use node_tree_derive::NodeSys;
+    pub use crate::structs::{ high_pointer::Hp, node_base::NodeBase, node_path::NodePath, node_tree::NodeTree, node_query::NodeQuery };
     pub use crate::traits::{ dynamic::Dynamic, node::{ Node, NodeAbstract, DynNode, private::NodeSealed } };
 }
 
 
 fn main() {
     
+    // Enable backtrace.
+    std::env::set_var("RUST_BACKTRACE", "1");
+
     // Create the tree.
     let root: Hp<NodeA>    = NodeA::new("Root".to_string());
     let tree: Hp<NodeTree> = NodeTree::new(root);
@@ -25,16 +29,9 @@ fn main() {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NodeSys)]
 pub struct NodeA {
     base: Rc<NodeBase>
-}
-
-impl Dynamic for NodeA { fn to_any(&self) -> &dyn std::any::Any { self } }
-
-impl NodeAbstract for NodeA {
-    fn as_dyn(self: Hp<Self>) -> DynNode      { self }
-    fn base(self: Hp<Self>)   -> Rc<NodeBase> { self.base.clone() }
 }
 
 impl NodeA {
@@ -50,17 +47,23 @@ impl Node for NodeA {
             self.add_child(NodeA::new(format!("{}_Node", self.depth() + 1)));
             self.add_child(NodeA::new(format!("{}_Node", self.depth() + 1)));
         }
-        //println!("{:#?}", self.children());
+        if self.is_root() {
+            println!("{:#?}", self.children());
+        }
     }
 
     fn process(self: Hp<Self>, delta: f32) -> () {
         println!("{} | {}", self.name(), 1f32 / delta);
         if self.is_root() {
-            println!("{:?}", self.get_node(NodePath::from_str("1_Node/2_Node1/3_Node2")).unwrap())
+            match self.get_node(NodePath::from_str("1_Node/2_Node1/3_Node2")) {
+                NodeQuery::Some(node) => println!("{:?}", node),
+                NodeQuery::None       => ()
+            }
         }
 
         if self.children().is_empty() {
-            self.root().unwrap().queue_termination();
+            self.free();   // We test the progressive destruction of nodes from the tip of the tree
+                           // to the base.
         }
     }
 }

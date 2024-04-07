@@ -75,6 +75,13 @@ pub mod private {
             Rc::get_mut_unchecked(&mut base).set_root(root);
         }
 
+        /// Disconnects the NodeTree from this node.
+        /// This should only be implemented, but not used manually.
+        unsafe fn disconnnect_root(self: Hp<Self>) -> () {
+            let mut base: Rc<NodeBase> = self.base();
+            Rc::get_mut_unchecked(&mut base).disconnnect_root();
+        }
+
         /// Gets the owner of the node.
         /// The owner is different from the parent. The owner can be thought as the root of the scene
         /// that this node is a part of, rather than the node's actual parent.
@@ -100,6 +107,13 @@ pub mod private {
             Rc::get_mut_unchecked(&mut base).set_owner(owner);
         }
 
+        /// Disconnects this node's owner from this node.
+        /// This should only be implemented, but not used manually.
+        unsafe fn disconnnect_owner(self: Hp<Self>) -> () {
+            let mut base: Rc<NodeBase> = self.base();
+            Rc::get_mut_unchecked(&mut base).disconnnect_owner();
+        }
+
         /// Gets the direct parent of this node.
         fn parent(self: Hp<Self>) -> NodeQuery {
             self.base().parent()
@@ -110,6 +124,13 @@ pub mod private {
         unsafe fn set_parent(self: Hp<Self>, parent: DynNode) -> () {
             let mut base: Rc<NodeBase> = self.base();
             Rc::get_mut_unchecked(&mut base).set_parent(parent);
+        }
+
+        /// Disconnects this node's parent from this node.
+        /// This should only be implemented, but not used manually.
+        unsafe fn disconnnect_parent(self: Hp<Self>) -> () {
+            let mut base: Rc<NodeBase> = self.base();
+            Rc::get_mut_unchecked(&mut base).disconnnect_parent();
         }
 
         /// Gets a vector of this node's children.
@@ -130,6 +151,8 @@ pub mod private {
         }
         
         /// Returns true if this node is a stray node with no parent or owner.
+        /// This means that the node is not connected to a tree nor is connected to any other node
+        /// aside from any of its children.
         fn is_stray(self: Hp<Self>) -> bool {
             self.parent().is_none() && self.owner().is_none()
         }
@@ -140,8 +163,9 @@ pub mod private {
         }
 
         /// Returns if this node is a part of the node tree.
+        /// If this is false, then it is expected behaviour that this node does not have an owner.
         fn in_tree(self: Hp<Self>) -> bool {
-            self.owner().is_some()
+            self.root().is_some()
         }
 
         /// Returns the number of children this node has.
@@ -150,7 +174,7 @@ pub mod private {
         }
 
         /// Returns true if this node has no children.
-        fn has_no_children(self: Hp<Self>) -> bool {
+        fn childless(self: Hp<Self>) -> bool {
             self.num_children() == 0
         }
 
@@ -191,6 +215,39 @@ pub mod private {
         unsafe fn add_child_unchecked(self: Hp<Self>, node: DynNode) -> () {
             let mut base: Rc<NodeBase> = self.base();
             Rc::get_mut_unchecked(&mut base).children_mut().push(node);
+        }
+
+        /// Removes a child but it does not destroy it, disconnecting from its parent.
+        /// Both the child and its children will be disconnected from the tree and their owners.
+        /// This will return whether the child node was successfully removed or not.
+        fn remove_child(self: Hp<Self>, name: &str) -> bool {
+            let child: Option<(usize, DynNode)> = self.children().into_iter().enumerate().find(|(_, c)| c.name() == name);
+            if child.is_none() {
+                return false;
+            }
+
+            let (child_idx, child): (usize, DynNode) = child.unwrap();
+            unsafe {
+                self.remove_child_unchecked(child_idx);
+                child.disconnnect_parent();
+                child.disconnnect_owner();
+                child.disconnnect_root();
+            }
+            for node in child.top_down(false) {
+                unsafe {
+                    node.disconnnect_owner();
+                    node.disconnnect_root()
+                }
+            }
+            true 
+        }
+
+        /// Removes a child based on index without cleaning up references to that child,
+        /// nor disconnecting any of the child's children nodes from the tree.
+        /// This should only be implemented, but not used manually.
+        unsafe fn remove_child_unchecked(self: Hp<Self>, idx: usize) -> () {
+            let mut base: Rc<NodeBase> = self.base();
+            Rc::get_mut_unchecked(&mut base).children_mut().remove(idx);
         }
 
         /// Returns a child at the given index.
@@ -304,6 +361,25 @@ pub mod private {
             }
 
             self.bottom_up_tail(iter, next_layer);
+        }
+
+        /// Destroys the Node, removing it from any connected parent or children.
+        /// If this is the root node, then the destruction of this node will result in the program
+        /// itself terminating.
+        fn free(self: Hp<Self>) -> () {
+            if let NodeQuery::Some(parent) = self.parent() {
+                parent.remove_child(&self.name());
+            }
+
+            if self.is_root() {
+                self.root().unwrap().terminate();
+            }
+
+            for node in self.bottom_up(true) {
+                unsafe {
+                    Hp::destroy(node);
+                }
+            }
         }
     }
 }

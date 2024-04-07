@@ -1,6 +1,6 @@
-[package]
-name = "node_tree"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
+[workspace]
+resolver = "2"
+members  = [
+    "node_tree_core",
+    "node_tree_derive",
+]

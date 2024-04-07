@@ -1,0 +1,7 @@
+[package]
+name = "node_tree_core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+node_tree_derive = { path = "../node_tree_derive" }
