@@ -7,7 +7,7 @@ use super::dynamic::Dynamic;
 pub mod private {
     use std::rc::Rc;
 
-    use crate::structs::{ high_pointer::Hp, node_base::NodeBase, node_path::NodePath, node_tree::NodeTree, node_query::NodeQuery };
+    use crate::structs::{ high_pointer::Hp, node_base::NodeBase, node_path::NodePath, node_tree::NodeTree, /*node_query::NodeQuery*/ };
     use crate::utils::functions::ensure_unique_name;
     use super::{ NodeAbstract, DynNode };
 
@@ -26,7 +26,7 @@ pub mod private {
         /// vector.
         /// Returns false if the operation fails.
         fn set_name(self: Hp<Self>, name: &str) -> bool {
-            if let NodeQuery::Some(parent) = self.parent() {
+            if let Some(parent) = self.parent() {
                 let mut is_unique: bool         = true;
                 let     neighbors: Vec<DynNode> = parent.children().iter().map(|a| a.to_owned()).collect();
 
@@ -96,7 +96,7 @@ pub mod private {
         /// And you were to call `owner()` on `NodeD`, you would get `NodeA`.
         /// # Note
         /// You can only have an owner on a node that is a part of a node tree.
-        fn owner(self: Hp<Self>) -> NodeQuery {
+        fn owner(self: Hp<Self>) -> Option<DynNode> {
             self.base().owner()
         }
 
@@ -115,7 +115,7 @@ pub mod private {
         }
 
         /// Gets the direct parent of this node.
-        fn parent(self: Hp<Self>) -> NodeQuery {
+        fn parent(self: Hp<Self>) -> Option<DynNode> {
             self.base().parent()
         }
 
@@ -252,16 +252,16 @@ pub mod private {
 
         /// Returns a child at the given index.
         /// If there is no child at the given index, then the NodeQuery will be empty.
-        fn get_child(self: Hp<Self>, i: usize) -> NodeQuery {
+        fn get_child(self: Hp<Self>, i: usize) -> Option<DynNode> {
             if i >= self.num_children() {
-                NodeQuery::None
+                None
             } else {
-                NodeQuery::Some(self.children()[i])
+                Some(self.children()[i])
             }
         }
 
         /// Gets a node given a NodePath that is respective to this node as the root.
-        fn get_node(self: Hp<Self>, mut path: NodePath) -> NodeQuery {
+        fn get_node(self: Hp<Self>, mut path: NodePath) -> Option<DynNode> {
             let next_node: Option<String> = path.pop_front();
             match next_node {
                 Some(target) => {
@@ -270,9 +270,9 @@ pub mod private {
                             return node.get_node(path);
                         }
                     }
-                    NodeQuery::None
+                    None
                 },
-                None => NodeQuery::Some(self.as_dyn())
+                None => Some(self.as_dyn())
             }
         }
 
@@ -367,7 +367,7 @@ pub mod private {
         /// If this is the root node, then the destruction of this node will result in the program
         /// itself terminating.
         fn free(self: Hp<Self>) -> () {
-            if let NodeQuery::Some(parent) = self.parent() {
+            if let Some(parent) = self.parent() {
                 parent.remove_child(&self.name());
             }
 

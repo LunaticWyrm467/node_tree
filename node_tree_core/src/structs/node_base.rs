@@ -12,8 +12,8 @@ use super::{ high_pointer::Hp, node_query::NodeQuery, node_tree::NodeTree };
 /// issues with recursion whilst debug printing.
 pub struct NodeBase {
     name:     String,
-    parent:   NodeQuery,
-    owner:    NodeQuery,
+    parent:   Option<DynNode>,
+    owner:    Option<DynNode>,
     root:     Option<Hp<NodeTree>>,
     children: Vec<DynNode>,
     depth:    usize   // How far the Node is within the tree.
@@ -25,8 +25,8 @@ impl NodeBase {
     pub fn new(name: String) -> Rc<Self> {
         Rc::new(NodeBase {
             name,
-            parent:   NodeQuery::None,
-            owner:    NodeQuery::None,
+            parent:   None,
+            owner:    None,
             root:     None,
             children: Vec::new(),
             depth:    0
@@ -76,37 +76,37 @@ impl NodeBase {
     /// And you were to call `owner()` on `NodeD`, you would get `NodeA`.
     /// # Note
     /// You can only have an owner on a node that is a part of a node tree.
-    pub fn owner(&self) -> NodeQuery {
-        self.owner.clone()
+    pub fn owner(&self) -> Option<DynNode> {
+        self.owner
     }
 
     /// Sets the owner of the node.
     /// This should only be implemented, but not used manually.
     pub unsafe fn set_owner(&mut self, owner: DynNode) -> () {
-        self.owner = NodeQuery::Some(owner);
+        self.owner = Some(owner);
     }
 
     /// Disconnects this node's owner from this node.
     /// This should only be implemented, but not used manually.
     pub unsafe fn disconnnect_owner(&mut self) -> () {
-        self.owner = NodeQuery::None;
+        self.owner = None;
     }
 
     /// Gets the direct parent of this node.
-    pub fn parent(&self) -> NodeQuery {
-        self.parent.clone()
+    pub fn parent(&self) -> Option<DynNode> {
+        self.parent
     }
 
     /// Sets the parent of this node.
     /// This should only be implemented, but not used manually.
     pub unsafe fn set_parent(&mut self, parent: DynNode) -> () {
-        self.parent = NodeQuery::Some(parent);
+        self.parent = Some(parent);
     }
 
     /// Disconnects this node's parent from this node.
     /// This should only be implemented, but not used manually.
     pub unsafe fn disconnnect_parent(&mut self) -> () {
-        self.parent = NodeQuery::None;
+        self.parent = None;
     }
 
     /// Gets a vector of this node's children.
@@ -134,10 +134,10 @@ impl std::fmt::Debug for NodeBase {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("Inner[{}] {{ ", self.name))?;
         
-        if let NodeQuery::Some(parent) = &self.parent {
+        if let Some(parent) = &self.parent {
             f.write_str(&format!("Parent: {}, ", parent.name()))?;
         }
-        if let NodeQuery::Some(owner) = &self.owner {
+        if let Some(owner) = &self.owner {
             f.write_str(&format!("Owner: {}, ", owner.name()))?;
         }
 

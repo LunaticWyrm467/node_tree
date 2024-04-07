@@ -1,20 +1,9 @@
-#![feature(get_mut_unchecked, arbitrary_self_types, unsize, dispatch_from_dyn, allocator_api, coerce_unsized)]
-
-pub mod structs;
-pub mod traits;
-pub mod utils;
-
-use prelude::*;
-
-pub mod prelude {
-    pub use std::rc::Rc;
-    pub use node_tree_derive::NodeSys;
-    pub use crate::structs::{ high_pointer::Hp, node_base::NodeBase, node_path::NodePath, node_tree::NodeTree, node_query::NodeQuery };
-    pub use crate::traits::{ dynamic::Dynamic, node::{ Node, NodeAbstract, DynNode, private::NodeSealed } };
-}
+#![feature(arbitrary_self_types)]
+use node_tree_core::prelude::*;
 
 
-fn main() {
+#[test]
+fn test_node_integration() {
     
     // Enable backtrace.
     std::env::set_var("RUST_BACKTRACE", "1");
@@ -56,8 +45,8 @@ impl Node for NodeA {
         println!("{} | {}", self.name(), 1f32 / delta);
         if self.is_root() {
             match self.get_node(NodePath::from_str("1_Node/2_Node1/3_Node2")) {
-                NodeQuery::Some(node) => println!("{:?}", node),
-                NodeQuery::None       => ()
+                Some(node) => println!("{:?}", node),
+                None       => ()
             }
         }
 
@@ -67,4 +56,3 @@ impl Node for NodeA {
         }
     }
 }
-
