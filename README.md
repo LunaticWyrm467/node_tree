@@ -2,7 +2,7 @@
 **NodeTree** is a framework to create large scalable programs and games through a tree of processes. Each process is fully autonomous and is capable of storing its own state or data, and communicating with other processes. These processes are known as Nodes.
 
 **⚠️WARNING⚠️**<br>
-THIS IS A NIGHTLY-DEPENDENT CRATE.
+THIS IS A NIGHTLY-DEPENDENT CRATE. The specified nightly version is 1.78.\n
 This crate is in early development. Beware of possible bugs or safety violations.
 
 ## Getting Started!
