@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::traits::node::DynNode;
-use super::{ high_pointer::Hp, node_query::NodeQuery, node_tree::NodeTree };
+use super::{ high_pointer::Hp, /*node_query::NodeQuery,*/ node_tree::NodeTree };
 
 
 

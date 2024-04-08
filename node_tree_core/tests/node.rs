@@ -1,5 +1,5 @@
 #![feature(arbitrary_self_types)]
-use node_tree_core::prelude::*;
+use node_tree::prelude::*;
 
 
 #[test]
