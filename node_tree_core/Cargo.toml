@@ -19,4 +19,4 @@ Inspired by Godot!
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-node_tree_derive = { path = "../node_tree_derive" }
+node_tree_derive = { path = "../node_tree_derive", version = "0.1.0" }
