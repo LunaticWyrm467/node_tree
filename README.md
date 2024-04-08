@@ -12,7 +12,7 @@ Simply either run `cargo add node_tree` at the terminal directed towards the dir
 To begin creating a program in Rust that utilizes a `NodeTree`, we must first create a root `Node`. In order to reduce boilerplate, we will use the included `NodeSys` derive macro to implement the required `Dynamic` and `NodeAbstract` traits. We will then implement the `Node` trait ourselves.
 ```rust
 #![feature(arbitrary_self_types)]   // Required for now.
-use node_tree_core::prelude::*;
+use node_tree::prelude::*;
 
 
 #[derive(Debug, Clone, NodeSys)]
