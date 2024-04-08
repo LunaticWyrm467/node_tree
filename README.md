@@ -3,7 +3,7 @@
 
 **⚠️WARNING⚠️**<br>
 THIS IS A NIGHTLY-DEPENDENT CRATE.<br>
-This crate is in early development. Beware of possible bugs or safety violations.
+This crate is in early development. Beware of possible bugs or safety violations.<br>
 The specific nightly version this crate uses is v1.78.
 
 ## Getting Started!
