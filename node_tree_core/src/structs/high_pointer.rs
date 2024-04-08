@@ -1,21 +1,48 @@
+//===================================================================================================================================================================================//
+//
+//  /$$   /$$              /$$ /$$$$$$$$ /$$          /$$$$$$$           /$$             /$$                        
+// | $$  | $$             /$$/|__  $$__/|  $$        | $$__  $$         |__/            | $$                        
+// | $$  | $$  /$$$$$$   /$$/    | $$    \  $$       | $$  \ $$ /$$$$$$  /$$ /$$$$$$$  /$$$$$$    /$$$$$$   /$$$$$$ 
+// | $$$$$$$$ /$$__  $$ /$$/     | $$     \  $$      | $$$$$$$//$$__  $$| $$| $$__  $$|_  $$_/   /$$__  $$ /$$__  $$
+// | $$__  $$| $$  \ $$|  $$     | $$      /$$/      | $$____/| $$  \ $$| $$| $$  \ $$  | $$    | $$$$$$$$| $$  \__/
+// | $$  | $$| $$  | $$ \  $$    | $$     /$$/       | $$     | $$  | $$| $$| $$  | $$  | $$ /$$| $$_____/| $$      
+// | $$  | $$| $$$$$$$/  \  $$   | $$    /$$/        | $$     |  $$$$$$/| $$| $$  | $$  |  $$$$/|  $$$$$$$| $$      
+// |__/  |__/| $$____/    \__/   |__/   |__/         |__/      \______/ |__/|__/  |__/   \___/   \_______/|__/      
+//           | $$                                                                                                   
+//           | $$                                                                                                   
+//           |__/                                                                                                   
+//
+//===================================================================================================================================================================================//
+
+//?
+//? Created by LunaticWyrm467 and others.
+//? 
+//? All code is licensed under the MIT license.
+//? Feel free to reproduce, modify, and do whatever.
+//?
+
+//!
+//! A shared mutability pointer with implicit cloning.
+//! Hp<T> stands for High-Pointer, which derives its name from its intended function: to chip away
+//! at some of the low-level unsafe operations that arise from shared mutability.
+//! 
+//! # Safety
+//! To prevent data races, this smart pointer does not derive from Sync + Send, which means that it
+//! *cannot* be shared through threads.
+//! This should not be used outside of the context of the NodeTree since the NodeTree is designed
+//! with shared mutability in mind.
+//!
+//! # Note
+//! These pointers do not destroy the data they have allocated automatically, rather they must be destroyed manually.
+//!
+
 use std::alloc::{ Allocator, Global };
 use std::marker::{ PhantomData, Unsize };
 use std::rc::Rc;
 use std::ops::{ CoerceUnsized, Deref, DerefMut, DispatchFromDyn };
 
 
-/// A shared mutability pointer with implicit cloning.
-/// Hp<T> stands for High-Pointer, which derives its name from its intended function: to chip away
-/// at some of the low-level unsafe operations that arise from shared mutability.
-/// 
-/// # Safety
-/// To prevent data races, this smart pointer does not derive from Sync + Send, which means that it
-/// *cannot* be shared through threads.
-/// This should not be used outside of the context of the NodeTree since the NodeTree is designed
-/// with shared mutability in mind.
-///
-/// # Note
-/// These pointers do not destroy the data they have allocated automatically, rather they must be destroyed manually.
+/// Please see the module's documentation for more information on the `Hp<T>` smart pointer.
 pub struct Hp<T: ?Sized, A: Allocator = Global>(*const T, PhantomData<A>);
 
 

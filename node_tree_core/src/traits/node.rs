@@ -1,9 +1,36 @@
+//===================================================================================================================================================================================//
+//
+//  /$$   /$$                 /$$                 /$$$$$$$$                 /$$   /$$             
+// | $$$ | $$                | $$                |__  $$__/                |__/  | $$             
+// | $$$$| $$  /$$$$$$   /$$$$$$$  /$$$$$$          | $$  /$$$$$$  /$$$$$$  /$$ /$$$$$$   /$$$$$$$
+// | $$ $$ $$ /$$__  $$ /$$__  $$ /$$__  $$         | $$ /$$__  $$|____  $$| $$|_  $$_/  /$$_____/
+// | $$  $$$$| $$  \ $$| $$  | $$| $$$$$$$$         | $$| $$  \__/ /$$$$$$$| $$  | $$   |  $$$$$$ 
+// | $$\  $$$| $$  | $$| $$  | $$| $$_____/         | $$| $$      /$$__  $$| $$  | $$ /$$\____  $$
+// | $$ \  $$|  $$$$$$/|  $$$$$$$|  $$$$$$$         | $$| $$     |  $$$$$$$| $$  |  $$$$//$$$$$$$/
+// |__/  \__/ \______/  \_______/ \_______/         |__/|__/      \_______/|__/   \___/ |_______/ 
+//
+//===================================================================================================================================================================================//
+
+//?
+//? Created by LunaticWyrm467 and others.
+//? 
+//? All code is licensed under the MIT license.
+//? Feel free to reproduce, modify, and do whatever.
+//?
+
+//!
+//! Stores important traits required to create a fully-fledged `Node` type, such as `NodeAbstract`,
+//! `private::Sealed`, and `Node`.
+//!
+
 use std::rc::Rc;
 
 use crate::structs::{ high_pointer::Hp, node_base::NodeBase, node_tree::ProcessMode };
 use super::dynamic::Dynamic;
 
 
+/// This will be hidden the moment Rust implements Private/Sealed traits officially.
+/// Do NOT implement this manually.
 pub mod private {
     use std::rc::Rc;
 

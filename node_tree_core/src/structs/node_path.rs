@@ -1,4 +1,47 @@
+//===================================================================================================================================================================================//
+//
+//  /$$   /$$                 /$$                 /$$$$$$$             /$$     /$$      
+// | $$$ | $$                | $$                | $$__  $$           | $$    | $$      
+// | $$$$| $$  /$$$$$$   /$$$$$$$  /$$$$$$       | $$  \ $$ /$$$$$$  /$$$$$$  | $$$$$$$ 
+// | $$ $$ $$ /$$__  $$ /$$__  $$ /$$__  $$      | $$$$$$$/|____  $$|_  $$_/  | $$__  $$
+// | $$  $$$$| $$  \ $$| $$  | $$| $$$$$$$$      | $$____/  /$$$$$$$  | $$    | $$  \ $$
+// | $$\  $$$| $$  | $$| $$  | $$| $$_____/      | $$      /$$__  $$  | $$ /$$| $$  | $$
+// | $$ \  $$|  $$$$$$/|  $$$$$$$|  $$$$$$$      | $$     |  $$$$$$$  |  $$$$/| $$  | $$
+// |__/  \__/ \______/  \_______/ \_______/      |__/      \_______/   \___/  |__/  |__/
+//
+//===================================================================================================================================================================================//
+
+//?
+//? Created by LunaticWyrm467 and others.
+//? 
+//? All code is licensed under the MIT license.
+//? Feel free to reproduce, modify, and do whatever.
+//?
+
+//!
+//! NodePaths are processed string paths to a node from a given starting node.
+//!
+//! # Example
+//! Lets assume that you have the following scene set up:
+//! ```text
+//! ... <Higher Nodes>
+//! ╰NodeA <Calling Node>
+//!  ├NodeB
+//!  ╰NodeC
+//!   ╰NodeD
+//!```
+//! You want to get NodeD from NodeA, so you would therefore do something like this:
+//! ```rust,ignore
+//! use node_tree::prelude::*;
+//!
+//! fn example(node_a: Hp<DynNode>) -> () {
+//!     let node_d: Hp<DynNode> = node_a.get_node(NodePath::from_str("NodeC/NodeD")).unwrap();
+//!     // ... Do whatever
+//! }
+//! ```
+
 use std::collections::VecDeque;
+
 
 /// A NodePath is a specialized string that holds a map for the NodeTree to follow and to retrieve
 /// a given node.

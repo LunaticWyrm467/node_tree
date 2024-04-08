@@ -4,14 +4,14 @@ version = 3
 
 [[package]]
 name = "node_tree"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "node_tree_derive",
 ]
 
 [[package]]
 name = "node_tree_derive"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "quote",
  "syn",

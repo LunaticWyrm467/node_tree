@@ -1,3 +1,47 @@
+//===================================================================================================================================================================================//
+//
+//  /$$   /$$                 /$$                 /$$$$$$$$                           
+// | $$$ | $$                | $$                |__  $$__/                           
+// | $$$$| $$  /$$$$$$   /$$$$$$$  /$$$$$$          | $$  /$$$$$$   /$$$$$$   /$$$$$$ 
+// | $$ $$ $$ /$$__  $$ /$$__  $$ /$$__  $$         | $$ /$$__  $$ /$$__  $$ /$$__  $$
+// | $$  $$$$| $$  \ $$| $$  | $$| $$$$$$$$         | $$| $$  \__/| $$$$$$$$| $$$$$$$$
+// | $$\  $$$| $$  | $$| $$  | $$| $$_____/         | $$| $$      | $$_____/| $$_____/
+// | $$ \  $$|  $$$$$$/|  $$$$$$$|  $$$$$$$         | $$| $$      |  $$$$$$$|  $$$$$$$
+// |__/  \__/ \______/  \_______/ \_______/         |__/|__/       \_______/ \_______/
+//
+//===================================================================================================================================================================================//
+
+//?
+//? Created by LunaticWyrm467 and others.
+//? 
+//? All code is licensed under the MIT license.
+//? Feel free to reproduce, modify, and do whatever.
+//?
+
+//!
+//! The `NodeTree` is the core of your program. It handles process frames, pausing, etc.
+//!
+//! # Example
+//! To get one to work, simply instantiate a root node - whichever node you deem necessary - and
+//! feed it to the tree's constructor.
+//! Finally, run the `start()` and `process()` functions in that order. 
+//! ```rust,ignore
+//! #![feature(arbitrary_self_types)]   // Required for now.
+//! use node_tree::prelude::*;
+//! 
+//! fn main() -> () {
+//!     
+//!     // Create the tree.
+//!     let root: Hp<DynNode>  = todo!();   // Run your custom node type's constructor here.
+//!     let tree: Hp<NodeTree> = NodeTree::new(root);
+//! 
+//!     // Begin operations on the tree.
+//!     tree.start();
+//!     tree.process();   // This will run an indefinite loop until the program exits.
+//! }
+//! ```
+
+
 use std::time::{ Duration, Instant };
 
 use crate::structs::high_pointer::Hp;
