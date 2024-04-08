@@ -3,6 +3,17 @@ name = "node_tree_derive"
 version = "0.1.0"
 edition = "2018"
 
+exclude = [
+    ".github/*",
+    ".vscode/*",
+    "tests/*",
+]
+
+keywords    = ["framework", "utility", "gamedev"]
+repository  = "https://github.com/LunaticWyrm467/node_tree"
+description = "Provides the `NodeSys` macro for the `node_tree` crate."
+license = "MIT OR Apache-2.0"
+
 [lib]
 proc-macro = true
 
