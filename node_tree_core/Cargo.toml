@@ -13,9 +13,8 @@ exclude = [
 keywords    = ["framework", "utility", "gamedev"]
 repository  = "https://github.com/LunaticWyrm467/node_tree"
 description = """
-A specialized crate that allows to create an extendable system for use for games or large programs.
-This system is made up of autonomous execution agents known as Nodes, which have their own data and can communicate to other nodes.
-Inspired by Godot!
+An extendable system made up of autonomous execution services known as nodes organized in a tree of processes.
+Inspired by Godot! 
 """
 license = "MIT OR Apache-2.0"
 
