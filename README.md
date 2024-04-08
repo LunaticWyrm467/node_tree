@@ -1,4 +1,8 @@
 # NodeTree
+![Crates.io License](https://img.shields.io/crates/l/node_tree?color=green)
+[![Crates.io Version](https://img.shields.io/crates/v/node_tree)](https://crates.io/crates/node_tree)
+[![Documentation](https://docs.rs/node_tree/badge.svg)](https://docs.rs/node_tree)
+
 **NodeTree** is a framework to create large scalable programs and games through a tree of processes. Each process is fully autonomous and is capable of storing its own state or data, and communicating with other processes. These processes are known as Nodes.
 
 **⚠️WARNING⚠️**<br>
