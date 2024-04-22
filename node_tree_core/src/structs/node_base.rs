@@ -178,6 +178,7 @@ impl NodeBase {
     pub unsafe fn set_status(&mut self, status: NodeStatus) -> () {
         self.status = status;
     }
+
     /// Gets the node's depth.
     pub fn depth(&self) -> usize {
         self.depth

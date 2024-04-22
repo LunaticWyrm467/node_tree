@@ -94,12 +94,113 @@ fn main() -> () {
 
     // Create the tree.
     let root: Hp<NodeA>    = NodeA::new("Root".to_string());
-    let tree: Hp<NodeTree> = NodeTree::new(root);
+    let tree: Hp<NodeTree> = NodeTree::new(root, LoggerVerbosity::NoDebug);
 
     // Begin operations on the tree.
     tree.start();
     tree.process();   // This will run an indefinite loop until the program exits.
 }
+```
+
+Logging is also supported. Here is an example setup with an output of a few warnings and a crash. Note that the crash header/footer are customizable, and that the output is actually colored in a real terminal.
+```rust
+/// Root Node
+#[derive(Debug, Clone, NodeSys)]
+pub struct LoggerNode {
+    base: Rc<NodeBase>
+}
+
+impl LoggerNode {
+    fn new(name: String) -> Hp<Self> {
+        Hp::new(LoggerNode { base: NodeBase::new(name) })
+    }
+}
+
+impl Node for LoggerNode {
+    fn ready(self: Hp<Self>) -> () {
+        if self.depth() < 3 {
+            self.add_child(LoggerNode::new(format!("{}_Node", self.depth() + 1)));
+            self.add_child(LoggerNode::new(format!("{}_Node", self.depth() + 1)));
+            self.add_child(LoggerNode::new(format!("{}_Node", self.depth() + 1)));
+        }
+    }
+
+    fn process(self: Hp<Self>, _delta: f32) -> () {
+        if self.name() == "3_Node2" && self.parent().unwrap().parent().unwrap().name() == "1_Node" {   // In the real world, you should probably have a better way of doing this.
+            self.post_to_log(Log::Warn("Simulating warning!"));
+        }
+
+        if self.name() == "3_Node2" && self.parent().unwrap().parent().unwrap().name() == "1_Node2"{
+            self.post_to_log(Log::Panic("Simulating panic!"));
+        }
+    }
+}
+```
+
+```console
+<22/04/2024 17:25:46 UTC> | [Root/1_Node/2_Node/3_Node2] | WARN | Simulating warning!
+<22/04/2024 17:25:46 UTC> | [Root/1_Node/2_Node1/3_Node2] | WARN | Simulating warning!
+<22/04/2024 17:25:46 UTC> | [Root/1_Node/2_Node2/3_Node2] | WARN | Simulating warning!
+<22/04/2024 17:25:46 UTC> | [Root/1_Node2/2_Node/3_Node2] | PANIC! | Simulating panic!
+
+Unfortunately the program has crashed. Please contact the development team with the following crash report as well as the attachment of the log posted during the time of the crash.
+
+[REPORT START]
+
+Root
+├── 1_Node
+│   ├── 2_Node
+│   │   ├── 3_Node
+│   │   ├── 3_Node1
+│   │   └── 3_Node2
+│   ├── 2_Node1
+│   │   ├── 3_Node
+│   │   ├── 3_Node1
+│   │   └── 3_Node2
+│   └── 2_Node2
+│       ├── 3_Node
+│       ├── 3_Node1
+│       └── 3_Node2
+├── 1_Node1
+│   ├── 2_Node
+│   │   ├── 3_Node
+│   │   ├── 3_Node1
+│   │   └── 3_Node2
+│   ├── 2_Node1
+│   │   ├── 3_Node
+│   │   ├── 3_Node1
+│   │   └── 3_Node2
+│   └── 2_Node2
+│       ├── 3_Node
+│       ├── 3_Node1
+│       └── 3_Node2
+└── 1_Node2
+    ├── 2_Node
+    │   ├── 3_Node
+    │   ├── 3_Node1
+    │   └── 3_Node2
+    ├── 2_Node1
+    │   ├── 3_Node
+    │   ├── 3_Node1
+    │   └── 3_Node2
+    └── 2_Node2
+        ├── 3_Node
+        ├── 3_Node1
+        └── 3_Node2
+
+[Same-Frame Warnings]
+3_Node2 - Simulating warning!
+3_Node2 - Simulating warning!
+3_Node2 - Simulating warning!
+
+[Same-Frame Panics]
+3_Node2 - Simulating panic!
+
+[REPORT END]
+Time of Crash: 22/04/2024 17:25:46
+Exit Code: 1
+
+Goodbye World! (Program Exited)
 ```
 
 ## Features
@@ -108,6 +209,7 @@ fn main() -> () {
 - 📡 Various methods to communicate with other nodes, such as `owner()`, `parent()`, `get_child()`, `children()`, and `get_node()`.
 - 🔗 An abstracted smart pointer known as `Hp<T>` which clones implicitly to reduce syntax noise and allows for low boilerplate.
 - 👪 The ability to manage nodes with `add_child()` and `remove_child()`.
+- 📝 Includes a dynamic logging system that is deeply integrated with the node framework.
 - 🌲 Allows for the direct referencing of the `NodeTree` through a node's `root()` function.
 - 📚 TODO: A caching system hosted on the `NodeTree` to act as a safe interface to ensure the `Hp<T>` soundness, and increase performance!
 - 📜 TODO: Includes a method to save and handle individual node scenes, such as the handy visual macro `Scene!`.

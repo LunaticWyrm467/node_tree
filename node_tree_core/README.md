@@ -35,7 +35,7 @@ impl NodeA {
 // Example implementation of the Node trait with custom behaviours.
 impl Node for NodeA {
 
-    /// Run once the Node is added to the NodeTree.
+    /// Runs once the Node is added to the NodeTree.
     fn ready(self: Hp<Self>) -> () {
 
         // To show off how you could add children nodes.
@@ -50,7 +50,7 @@ impl Node for NodeA {
         }
     }
 
-    /// Run once per frame. Provides a delta value in seconds between frames.
+    /// Runs once per frame. Provides a delta value in seconds between frames.
     fn process(self: Hp<Self>, delta: f32) -> () {
 
         // Example of using the delta value to calculate the current framerate.
