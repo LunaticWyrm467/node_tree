@@ -31,6 +31,12 @@ use crate::traits::node::DynNode;
 use super::{ high_pointer::Hp, /*node_query::NodeQuery,*/ node_tree::NodeTree };
 
 
+#[derive(Debug, Clone)]
+pub enum NodeStatus {
+    Normal,
+    JustWarned(String),
+    JustPanicked(String)
+}
 
 /// Holds all of the node's internal information such as its name, children, parent, and owner.
 /// Also allows for the modification of the node's internal state.
@@ -38,12 +44,14 @@ use super::{ high_pointer::Hp, /*node_query::NodeQuery,*/ node_tree::NodeTree };
 /// This does not derive from the Debug macro, but rather implements Debug manually to avoid
 /// issues with recursion whilst debug printing.
 pub struct NodeBase {
-    name:     String,
-    parent:   Option<DynNode>,
-    owner:    Option<DynNode>,
-    root:     Option<Hp<NodeTree>>,
-    children: Vec<DynNode>,
-    depth:    usize   // How far the Node is within the tree.
+    name:      String,
+    unique_id: String,
+    parent:    Option<DynNode>,
+    owner:     Option<DynNode>,
+    root:      Option<Hp<NodeTree>>,
+    children:  Vec<DynNode>,
+    status:    NodeStatus,
+    depth:     usize   // How far the Node is within the tree.
 }
 
 impl NodeBase {
@@ -52,16 +60,18 @@ impl NodeBase {
     pub fn new(name: String) -> Rc<Self> {
         Rc::new(NodeBase {
             name,
-            parent:   None,
-            owner:    None,
-            root:     None,
-            children: Vec::new(),
-            depth:    0
+            unique_id: String::new(),
+            parent:    None,
+            owner:     None,
+            root:      None,
+            children:  Vec::new(),
+            status:    NodeStatus::Normal,
+            depth:     0
         })
     }
 
     /// Gets the name of the node.
-    /// Each name must be unique within the context of the parent's children vector.
+    /// Each name is unique within the context of the parent's children vector.
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -70,6 +80,18 @@ impl NodeBase {
     /// This should only be implemented, but not used manually.
     pub unsafe fn set_name_unchecked(&mut self, name: &str) -> () {
         self.name = name.to_string();
+    }
+
+    /// Gets the unique ID of the node.
+    /// Each unique ID is unique within the context of the entire NodeTree.
+    pub fn unique_id(&self) -> &str {
+        &self.unique_id
+    }
+
+    /// Sets the unique ID of the node.
+    /// This should only be implemented, but not used manually.
+    pub unsafe fn set_unique_id(&mut self, unique_id: String) -> () {
+        self.unique_id = unique_id;
     }
 
     /// Gets the reference to the root NodeTree structure, which controls the entire tree.
@@ -146,12 +168,23 @@ impl NodeBase {
         &mut self.children
     }
 
+    /// Gets the node's status.
+    pub fn status(&self) -> &NodeStatus {
+        &self.status
+    }
+
+    /// Sets the node's status.
+    /// This should only be implemented, but not used manually.
+    pub unsafe fn set_status(&mut self, status: NodeStatus) -> () {
+        self.status = status;
+    }
     /// Gets the node's depth.
     pub fn depth(&self) -> usize {
         self.depth
     }
 
     /// Sets the node's depth.
+    /// This should only be implemented, but not used manually.
     pub unsafe fn set_depth(&mut self, depth: usize) -> () {
         self.depth = depth;
     }

@@ -10,7 +10,7 @@ fn test_node_integration() {
 
     // Create the tree.
     let root: Hp<NodeA>    = NodeA::new("Root".to_string());
-    let tree: Hp<NodeTree> = NodeTree::new(root);
+    let tree: Hp<NodeTree> = NodeTree::new(root, LoggerVerbosity::NoDebug);
 
     // Begin operations on the tree.
     tree.start();

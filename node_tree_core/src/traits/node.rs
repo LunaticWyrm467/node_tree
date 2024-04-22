@@ -34,6 +34,10 @@ use super::dynamic::Dynamic;
 pub mod private {
     use std::rc::Rc;
 
+    use crate::prelude::Log;
+    use crate::structs::logger::SystemCall;
+    use crate::structs::node_base::NodeStatus;
+    use crate::structs::node_tree::NodeIdentity;
     use crate::structs::{ high_pointer::Hp, node_base::NodeBase, node_path::NodePath, node_tree::NodeTree, /*node_query::NodeQuery*/ };
     use crate::utils::functions::ensure_unique_name;
     use super::{ NodeAbstract, DynNode };
@@ -88,6 +92,19 @@ pub mod private {
         unsafe fn set_name_unchecked(self: Hp<Self>, name: &str) -> () {
             let mut base: Rc<NodeBase> = self.base();
             Rc::get_mut_unchecked(&mut base).set_name_unchecked(name);
+        }
+        
+        /// Gets the unique ID of the node.
+        /// Each unique ID is unique within the context of the entire NodeTree.
+        fn unique_id(self: Hp<Self>) -> String {
+            self.base().unique_id().to_string()
+        }
+
+        /// Sets the unique ID of the node.
+        /// This should only be implemented, but not used manually.
+        unsafe fn set_unique_id(self: Hp<Self>, unique_id: String) -> () {
+            let mut base: Rc<NodeBase> = self.base();
+            Rc::get_mut_unchecked(&mut base).set_unique_id(unique_id);
         }
 
         /// Gets the reference to the root NodeTree structure, which controls the entire tree.
@@ -176,6 +193,18 @@ pub mod private {
             let mut base: Rc<NodeBase> = self.base();
             Rc::get_mut_unchecked(&mut base).set_depth(depth);
         }
+   
+        /// Gets the node's status.
+        fn status(self: Hp<Self>) -> NodeStatus {
+            self.base().status().clone()
+        }
+
+        /// Sets the node's status.
+        /// This should only be implemented, but not used manually.
+        unsafe fn set_status(self: Hp<Self>, status: NodeStatus) -> () {
+            let mut base: Rc<NodeBase> = self.base();
+            Rc::get_mut_unchecked(&mut base).set_status(status);
+        }
         
         /// Returns true if this node is a stray node with no parent or owner.
         /// This means that the node is not connected to a tree nor is connected to any other node
@@ -219,21 +248,22 @@ pub mod private {
             // as well as the root tree structure's reference.
             unsafe {
                 node.set_name_unchecked(&ensure_unique_name(&node_name, names_of_children));
+                node.set_unique_id(self.root().expect("Parent does not have a root reference set!").register_node());
                 node.set_parent(self.as_dyn());
                 node.set_root(self.root().expect("Parent does not have a root reference set!"));
                 node.set_depth(self.depth() + 1);   // This is the only place where depth is updated.
                 self.add_child_unchecked(node);
             }
 
-            if self.in_tree() {
-                let child: DynNode = self.children()[self.num_children() - 1];
-                unsafe {
-                    child.set_owner(self.owner().unwrap());   // For now, we just propagate the root as the owner for all nodes.
-                }
-                for node in child.bottom_up(true) {
-                    node.ready();
-                }
+            let child: DynNode = self.children()[self.num_children() - 1];
+            unsafe {
+                child.set_owner(self.owner().unwrap());   // For now, we just propagate the root as the owner for all nodes.
             }
+            for node in child.bottom_up(true) {
+                node.ready();
+            }
+
+            self.post_to_log(Log::Debug(&format!("Node \"{}\" added to the scene as the child of \"{}\"! Unique ID of \"{}\" generated!", child.name(), self.name(), child.unique_id())));
         }
 
         /// Adds a child without performing any checks nor running the `ready()` function in the
@@ -250,6 +280,7 @@ pub mod private {
         fn remove_child(self: Hp<Self>, name: &str) -> bool {
             let child: Option<(usize, DynNode)> = self.children().into_iter().enumerate().find(|(_, c)| c.name() == name);
             if child.is_none() {
+                self.post_to_log(Log::Warn(&format!("Attempted to remove invalid node of name \"{}\" from node \"{}\"!", name, self.name())));
                 return false;
             }
 
@@ -259,13 +290,22 @@ pub mod private {
                 child.disconnnect_parent();
                 child.disconnnect_owner();
                 child.disconnnect_root();
+                match self.root() {
+                    Some(root) => root.unregister_node(child.unique_id()),
+                    None       => ()
+                }
             }
             for node in child.top_down(false) {
                 unsafe {
                     node.disconnnect_owner();
-                    node.disconnnect_root()
+                    node.disconnnect_root();
+                    match self.root() {
+                        Some(root) => root.unregister_node(node.unique_id()),
+                        None       => ()
+                    }
                 }
             }
+            self.post_to_log(Log::Debug(&format!("Removed child node \"{}\" from parent node \"{}\"!", child.name(), self.name())));
             true 
         }
 
@@ -388,6 +428,54 @@ pub mod private {
             }
 
             self.bottom_up_tail(iter, next_layer);
+        }
+
+        /// Gets this Node's absolute NodePath to the root of the tree.
+        fn get_absolute_path(self: Hp<Self>) -> NodePath {
+            let mut path: String = String::new();
+            self.get_absolute_path_tail(&mut path);
+            NodePath::from_str(&path)
+        }
+
+        /// The recursive tail for the `get_absolute_path` function.
+        fn get_absolute_path_tail(self: Hp<Self>, path: &mut String) {
+            *path = self.name() + &(if path.is_empty() { String::new() } else { "/".to_string() + path });
+            if !self.is_root() {
+                self.parent().unwrap().get_absolute_path_tail(path);
+            }
+        }
+
+        /// Attempts to post a log to the logger.
+        /// If this node has a unique identifier accessible by name, then that will be used as the
+        /// node's identifier in the log.
+        /// # Panics
+        /// Panics if this Node is not connected to a NodeTree.
+        fn post_to_log(self: Hp<Self>, log: Log) -> () {
+            unsafe {
+                match &log {
+                    Log::Warn(str)  => self.set_status(NodeStatus::JustWarned(str.to_string())),
+                    Log::Panic(str) => self.set_status(NodeStatus::JustPanicked(str.to_string())),
+                    _               => ()
+                }
+            }
+
+            match self.root() {
+                Some(root) => {
+                    match root.get_node_identity(self.unique_id()) {
+                        Some(NodeIdentity::NodePath) => {
+                            let path: String = self.get_absolute_path().to_string();
+                            root.post_to_log(SystemCall::NodePath(&path), log);
+                        },
+                        Some(NodeIdentity::UniqueName(name)) => {
+                            root.post_to_log(SystemCall::Named(&name), log);
+                        },
+                        None => {
+                            panic!("This node ({}) has no identity! Cannot post to log on an unregistered or invalid node!", self.name());
+                        }
+                    }
+                },
+                None => panic!("Cannot post to log on a disconnected node!")
+            }
         }
 
         /// Destroys the Node, removing it from any connected parent or children.

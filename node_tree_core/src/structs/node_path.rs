@@ -31,11 +31,11 @@
 //!   ╰NodeD
 //!```
 //! You want to get NodeD from NodeA, so you would therefore do something like this:
-//! ```rust,ignore
+//! ```
 //! use node_tree::prelude::*;
 //!
-//! fn example(node_a: Hp<DynNode>) -> () {
-//!     let node_d: Hp<DynNode> = node_a.get_node(NodePath::from_str("NodeC/NodeD")).unwrap();
+//! fn example(node_a: DynNode) -> () {
+//!     let node_d: DynNode = node_a.get_node(NodePath::from_str("NodeC/NodeD")).unwrap();
 //!     // ... Do whatever
 //! }
 //! ```
@@ -68,6 +68,15 @@ impl NodePath {
         NodePath {
             path: str.split('/').map(|s| s.to_string()).collect()
         }
+    }
+
+    /// Converts the path to a string, consuming it.
+    pub fn to_string(mut self) -> String {
+        let mut out: String = String::new();
+        while let Some(segment) = self.pop_front() {
+            out += &(segment + "/");
+        }
+        out.get(0..(out.len() - 1)).unwrap().to_string()
     }
 
     /// Adds a node to the back of the path.

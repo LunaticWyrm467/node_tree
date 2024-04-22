@@ -58,6 +58,6 @@ pub mod prelude {
 
     pub use std::rc::Rc;
     pub use node_tree_derive::NodeSys;
-    pub use crate::structs::{ high_pointer::Hp, node_base::NodeBase, node_path::NodePath, node_tree::NodeTree, node_query::NodeQuery };
+    pub use crate::structs::{ high_pointer::Hp, logger::{ LoggerVerbosity, Log }, node_base::NodeBase, node_path::NodePath, node_tree::NodeTree, node_query::NodeQuery };
     pub use crate::traits::{ dynamic::Dynamic, node::{ Node, NodeAbstract, DynNode, private::NodeSealed } };
 }
