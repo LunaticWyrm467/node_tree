@@ -19,7 +19,7 @@ pub fn test_logger_tree() -> () {
     
     // Create the tree.
     let root: Hp<LoggerNode> = LoggerNode::new("Root".to_string());
-    let tree: Hp<NodeTree>   = NodeTree::new(root, LoggerVerbosity::All);
+    let tree: Hp<NodeTree>   = NodeTree::new(root, LoggerVerbosity::NoDebug);
 
     // Begin operations on the tree.
     tree.start();

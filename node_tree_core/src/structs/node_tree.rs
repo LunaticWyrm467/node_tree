@@ -49,6 +49,7 @@ use nanoid::nanoid;
 use crate::traits::node::DynNode;
 use super::high_pointer::Hp;
 use super::logger::*;
+use super::node_base::NodeStatus;
 use super::node_path::NodePath;
 
 
@@ -142,6 +143,13 @@ impl NodeTree {
             let elapsed: Duration = now.elapsed();
             let delta:   f32      = elapsed.as_secs_f32();
             now = Instant::now();
+
+            // Reset the prior frame's node statuses.
+            for node in self.root.top_down(true) {
+                unsafe {
+                    node.set_status(NodeStatus::Normal);
+                }
+            }
             
             // Process the node tree recursively.
             self.process_tail(self.root, delta, ProcessMode::Pausable);
@@ -153,7 +161,7 @@ impl NodeTree {
         }
     }
 
-    /// Calls to this function results in the program terminting.
+    /// Calls to this function results in the program terminating.
     /// This doesn't terminate the program itself, rather it just queues the program for
     /// self-termination.
     pub fn queue_termination(mut self: Hp<Self>) -> () {

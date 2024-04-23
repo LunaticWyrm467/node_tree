@@ -25,7 +25,7 @@
 //! Contains utility functions used throughout the crate.
 //!
 
-use crate::{prelude::{ DynNode, Hp, NodePath, NodeTree }, structs::node_base::NodeStatus};
+use crate::{ prelude::{ DynNode, Hp, NodePath, NodeTree }, structs::node_base::NodeStatus };
 
 
 /// Ensures that the name provided is unique relative to the list of other names.
@@ -157,7 +157,7 @@ pub fn draw_tree(node_tree: Hp<NodeTree>, origin: NodePath, view_up: usize, view
         }
     }
 
-    let mut out: String = format!("[REPORT START]\n\n{}\n", draw_from.name());
+    let mut out: String = format!("[REPORT START]\n{}\n", draw_from.name());
     walk(draw_from, "", &mut out, &mut warnings, &mut panics, levels + 1);   // + 1 to compensate for the last names being replaced with "..."
    
     out += "\n[Same-Frame Warnings]";
