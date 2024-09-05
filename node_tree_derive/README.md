@@ -72,12 +72,12 @@ impl Node for NodeA {
     }
 
     /// Runs once a Node is removed from the NodeTree, whether that is from the program itself terminating or not.
-    fn terminal(&self: Hp<Self>) -> () {}   // We do not do anything here for this example.
+    fn terminal(&mut self) -> () {}   // We do not do anything here for this example.
 
     /// Returns this node's process mode.
     /// Each process mode controls how the process() function behaves when the NodeTree is paused or not.
     /// (The NodeTree can be paused or unpaused with the pause() or unpause() functions respectively.)
-    fn process_mode(&mut self: Hp<Self>) -> ProcessMode {
+    fn process_mode(&self) -> ProcessMode {
         ProcessMode::Inherit    // We will return the default value, which inherits the behaviour from
                                 // the parent node.
     }
