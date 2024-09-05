@@ -146,7 +146,6 @@ impl Node for LoggerNode {
 Unfortunately the program has crashed. Please contact the development team with the following crash report as well as the attachment of the log posted during the time of the crash.
 
 [REPORT START]
-
 Root
 ├── 1_Node
 │   ├── 2_Node

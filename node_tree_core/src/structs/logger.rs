@@ -30,10 +30,10 @@ use std::time::SystemTime;
 
 use chrono::{ DateTime, Utc };
 
-use crate::prelude::NodePath;
+
+use super::node_tree::NodeIdentity;
+use crate::prelude::{ RID, NodeTree };
 use crate::utils::functions::draw_tree;
-use super::node_tree::NodeTree;
-use super::high_pointer::Hp;
 
 
 /*
@@ -54,13 +54,13 @@ pub enum LoggerVerbosity {
 
 /// Used to pass the system that called the log to the logger for proper formatting.
 #[derive(Debug, Clone)]
-pub enum SystemCall<'a> {
-    Named(&'a str),
-    NodePath(&'a str)
+pub enum SystemCall {
+    Named(String),
+    NodePath(String)
 }
 
-impl <'a> SystemCall<'a> {
-    
+impl SystemCall {
+
     /// Returns the calling system in a properly formatted string.
     pub fn format(&self) -> String {
         match self {
@@ -171,31 +171,73 @@ impl Logger {
             crash_footer: "Goodbye World! (Program Exited)".to_string()
         };
         
-        logger.post(SystemCall::Named("SysLogger"), Log::Debug("System logger has initialized. Hello World!"), None);
+        logger.post_manual(SystemCall::Named("SysLogger".to_string()), Log::Debug("System logger has initialized. Hello World!"));
         logger
     }
 
     /// Sets the default crash header message.
-    pub fn set_default_header_on_panic(&mut self, msg: &str) -> () {
+    pub fn set_default_header_on_panic(&mut self, msg: &str) {
         self.crash_header = msg.to_string();
     }
     
     /// Sets the default crash footer message.
-    pub fn set_default_footer_on_panic(&mut self, msg: &str) -> () {
+    pub fn set_default_footer_on_panic(&mut self, msg: &str) {
         self.crash_footer = msg.to_string();
     }
 
-    /// Posts a new message to the log.
-    /// If the NodeTree is provided, then it will automatically terminate the NodeTree if the log
-    /// was a `Panic`.
-    pub fn post(&mut self, system: SystemCall, log: Log, node_tree: Option<Hp<NodeTree>>) -> () {
+    /// Posts a new message to the log using the NodeTree as a reference.
+    /// This will return whether the NodeTree should quit or not.
+    /// # Safety
+    /// This is marked unsafe because there is no way to validate that the passed in pointer to the
+    /// NodeTree is valid.
+    pub unsafe fn post(&mut self, calling: RID, log: Log, node_tree: *mut NodeTree) -> bool {
         match &self.verbosity_lv {
             LoggerVerbosity::All        => {},
-            LoggerVerbosity::NoDebug    => if log.is_debug() { return; },
-            LoggerVerbosity::OnlyIssues => if !log.is_problematic() { return; },
-            LoggerVerbosity::OnlyPanics => if !log.is_panic() { return; }
+            LoggerVerbosity::NoDebug    => if log.is_debug() { return false; },
+            LoggerVerbosity::OnlyIssues => if !log.is_problematic() { return false; },
+            LoggerVerbosity::OnlyPanics => if !log.is_panic() { return false; }
         }
         
+        let node_tree: &NodeTree  = &*node_tree;
+        let system:    SystemCall = {
+            match node_tree.get_node_identity(calling) {
+                Some(NodeIdentity::NodePath)         => SystemCall::NodePath(unsafe { node_tree.get_node(calling).unwrap_unchecked() }.get_absolute_path().to_string()),
+                Some(NodeIdentity::UniqueName(name)) => SystemCall::Named(name),
+                None                                 => unimplemented!()
+            }
+        };
+
+        let colour: String = log.get_colour();
+        let panic:  bool   = log.is_panic();
+        let time:   String = self.post_manual(system, log);
+
+        if panic {
+            let node_tree_visual: String = draw_tree(node_tree, calling, 6, 6);
+            println!("
+{}{}
+
+\u{001b}[0m{}{}
+Time of Crash: {}
+Exit Code: {}
+
+{}\u{001b}[0m", colour, self.crash_header, node_tree_visual, colour, time, 1, self.crash_footer);
+            
+            self.log += &format!("
+{}
+
+{}
+Time of Crash: {}
+Exit Code: {}
+
+{}", self.crash_header, node_tree_visual, time, 1, self.crash_footer);
+        }
+        
+        panic
+    }
+
+    /// Posts a new message to the log, without printing a crash report if there is an Error.
+    /// Returns the time of the posted message
+    pub fn post_manual(&mut self, system: SystemCall, log: Log) -> String {
         let time: String = DateTime::<Utc>::from(SystemTime::now()).format("%d/%m/%Y %T").to_string();
         
         println!(
@@ -215,31 +257,7 @@ impl Logger {
             log.get_msg()
         );
 
-        if log.is_panic() {
-            let mut node_tree_visual: String = "Node Tree Voided".to_string();
-            if let Some(node_tree) = node_tree {
-                node_tree_visual = draw_tree(node_tree, NodePath::from_str(system.to_str()), 6, 6);
-                node_tree.terminate();
-            }
-
-            println!("
-{}{}
-
-\u{001b}[0m{}{}
-Time of Crash: {}
-Exit Code: {}
-
-{}\u{001b}[0m", log.get_colour(), self.crash_header, node_tree_visual, log.get_colour(), time, 1, self.crash_footer);
-            
-            self.log += &format!("
-{}
-
-{}
-Time of Crash: {}
-Exit Code: {}
-
-{}", self.crash_header, node_tree_visual, time, 1, self.crash_footer);
-        }
+        time
     }
 
     /// Gets the log as a string.

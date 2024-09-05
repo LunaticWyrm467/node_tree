@@ -25,12 +25,12 @@
 //! Contains utility functions used throughout the crate.
 //!
 
-use crate::{ prelude::{ DynNode, Hp, NodePath, NodeTree }, structs::node_base::NodeStatus };
+use crate::{ prelude::{ RID, NodeTree, Node }, structs::node_base::NodeStatus };
 
 
 /// Ensures that the name provided is unique relative to the list of other names.
 /// If it is not, then it will create a new unique name.
-pub fn ensure_unique_name(name: &str, relative_to: Vec<String>) -> String {
+pub fn ensure_unique_name(name: &str, relative_to: &[&str]) -> String {
     fn extract_numerical_suffix(s: &str) -> Option<usize> {
         let mut numerics: String = String::new();
         let mut ptr:      usize  = s.len() - 1;
@@ -69,7 +69,7 @@ pub fn ensure_unique_name(name: &str, relative_to: Vec<String>) -> String {
     
     // Search for any similar names that have the same beginning but different suffixes.
     let mut similar_names: Vec<String> = Vec::new();
-    for set_name in &relative_to {
+    for set_name in relative_to {
         let idx_found: Option<usize> = set_name.find(&name_without_suffix);
         
         if let Some(idx) = idx_found {
@@ -108,17 +108,17 @@ pub fn ensure_unique_name(name: &str, relative_to: Vec<String>) -> String {
 /// Takes in a NodeTree and prints out a graphical representation with a node as the origin.
 /// `view_up` is the amount of layers of nodes above the origin that are drawn (parent, grandparent, etc), and `view_down` is the amount
 /// of layers of nodes below the origin that are drawn (children, etc).
-pub fn draw_tree(node_tree: Hp<NodeTree>, origin: NodePath, view_up: usize, view_down: usize) -> String {
-    fn get_draw_from(node: DynNode, view_left: usize) -> DynNode {
+pub fn draw_tree(node_tree: &NodeTree, origin: RID, view_up: usize, view_down: usize) -> String {
+    fn get_start<'a>(tree: &'a NodeTree, node: &'a dyn Node, view_left: usize) -> &'a dyn Node {
         if node.is_root() || view_left == 0 {
             return node;
         }
-        get_draw_from(node.parent().unwrap(), view_left - 1)
+        get_start(tree, unsafe { tree.get_node(node.parent().unwrap_unchecked()).unwrap_unchecked() }, view_left - 1)
     }
 
-    let origin:    DynNode = node_tree.get_node(origin).unwrap();
-    let draw_from: DynNode = get_draw_from(origin, view_up);
-    let levels:    usize   = view_up + view_down;
+    let origin:    &dyn Node = node_tree.get_node(origin).unwrap();
+    let draw_from: &dyn Node = get_start(node_tree, origin, view_up);
+    let levels:    usize     = view_up + view_down;
     
     const OTHER_CHILD: &str = "│   ";   // prefix: pipe
     const OTHER_ENTRY: &str = "├── ";   // connector: tee
@@ -127,14 +127,17 @@ pub fn draw_tree(node_tree: Hp<NodeTree>, origin: NodePath, view_up: usize, view
     
     let mut warnings: Vec<String> = Vec::new();
     let mut panics:   Vec<String> = Vec::new();
-    fn walk(node: DynNode, prefix: &str, out: &mut String, warnings: &mut Vec<String>, panics: &mut Vec<String>, level: usize) -> () {
-        let mut count: usize = node.num_children();
+    fn walk(tree: &NodeTree, node_rid: RID, prefix: &str, out: &mut String, warnings: &mut Vec<String>, panics: &mut Vec<String>, level: usize) -> () {
+        let     node:  &dyn Node = unsafe { tree.get_node(node_rid).unwrap_unchecked() };
+        let mut count: usize     = node.num_children();
 
-        for child in node.children() {
+        for child_rid in node.children() {
             count -= 1;
-            let connector: &str = if count == 0 { FINAL_ENTRY } else { OTHER_ENTRY };
+            
+            let child:     &dyn Node = unsafe { tree.get_node(*child_rid).unwrap_unchecked() };
+            let connector: &str      = if count == 0 { FINAL_ENTRY } else { OTHER_ENTRY };
 
-            let mut child_name: String = child.name();
+            let mut child_name: String = child.name().to_string();
             match child.status() {
                 NodeStatus::Normal => (),
 
@@ -152,13 +155,13 @@ pub fn draw_tree(node_tree: Hp<NodeTree>, origin: NodePath, view_up: usize, view
             *out += &format!("{}{}{}\n", prefix, connector, if level != 0 { child_name } else { "...".to_string() });
             if !child.childless() && level != 0 {
                 let new_prefix: String = format!("{}{}", prefix, if count == 0 { FINAL_CHILD } else { OTHER_CHILD });
-                walk(child, &new_prefix, out, warnings, panics, level - 1);
+                walk(tree, *child_rid, &new_prefix, out, warnings, panics, level - 1);
             }
         }
     }
 
     let mut out: String = format!("[REPORT START]\n{}\n", draw_from.name());
-    walk(draw_from, "", &mut out, &mut warnings, &mut panics, levels + 1);   // + 1 to compensate for the last names being replaced with "..."
+    walk(node_tree, draw_from.rid(), "", &mut out, &mut warnings, &mut panics, levels + 1);   // + 1 to compensate for the last names being replaced with "..."
    
     out += "\n[Same-Frame Warnings]";
     if !warnings.is_empty() {

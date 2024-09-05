@@ -6,11 +6,13 @@ use node_tree::prelude::*;
 fn test_node_integration() {
     
     // Enable backtrace.
-    std::env::set_var("RUST_BACKTRACE", "1");
+    unsafe {
+        std::env::set_var("RUST_BACKTRACE", "1");
+    }
 
     // Create the tree.
-    let root: Hp<NodeA>    = NodeA::new("Root".to_string());
-    let tree: Hp<NodeTree> = NodeTree::new(root, LoggerVerbosity::NoDebug);
+    let     root: NodeA         = NodeA::new("Root".to_string());
+    let mut tree: Box<NodeTree> = NodeTree::new(root, LoggerVerbosity::NoDebug);
 
     // Begin operations on the tree.
     tree.start();
@@ -18,33 +20,35 @@ fn test_node_integration() {
 }
 
 
-#[derive(Debug, Clone, NodeSys)]
+#[derive(Debug, Abstract)]
 pub struct NodeA {
-    base: Rc<NodeBase>
+    base: NodeBase
 }
 
 impl NodeA {
-    fn new(name: String) -> Hp<Self> {
-        Hp::new(NodeA { base: NodeBase::new(name) })
+    fn new(name: String) -> Self {
+        NodeA { base: NodeBase::new(name) }
     }
 }
 
 impl Node for NodeA {
-    fn ready(self: Hp<Self>) -> () {
+    fn ready(&mut self) -> () {
         if self.depth() < 3 {
-            self.add_child(NodeA::new(format!("{}_Node", self.depth() + 1)));
-            self.add_child(NodeA::new(format!("{}_Node", self.depth() + 1)));
-            self.add_child(NodeA::new(format!("{}_Node", self.depth() + 1)));
+            let depth_new: usize = self.depth() + 1;
+
+            self.add_child(NodeA::new(format!("{}_Node", depth_new)));
+            self.add_child(NodeA::new(format!("{}_Node", depth_new)));
+            self.add_child(NodeA::new(format!("{}_Node", depth_new)));
         }
         if self.is_root() {
-            println!("{:#?}", self.children());
+            println!("{:?}", self.children());
         }
     }
 
-    fn process(self: Hp<Self>, delta: f32) -> () {
+    fn process(&mut self, delta: f32) -> () {
         println!("{} | {}", self.name(), 1f32 / delta);
         if self.is_root() {
-            match self.get_node(NodePath::from_str("1_Node/2_Node1/3_Node2")) {
+            match self.get_node_raw(NodePath::from_str("1_Node/2_Node1/3_Node2")) {
                 Some(node) => println!("{:?}", node),
                 None       => ()
             }

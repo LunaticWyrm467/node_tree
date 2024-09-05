@@ -22,7 +22,7 @@
 //?
 
 //!
-//! Contains the `NodeSys` derive macro which helps reduce boilerplate in regards to trait
+//! Contains the `Abstract` derive macro which helps reduce boilerplate in regards to trait
 //! implementations.
 //!
 
@@ -32,7 +32,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{ parse_macro_input, DeriveInput, Ident };
 
-#[proc_macro_derive(NodeSys)]
+#[proc_macro_derive(Abstract)]
 pub fn node_sys_derive(input: TokenStream) -> TokenStream {
     
     // Parse the input tokens into a syntax tree,
@@ -40,16 +40,42 @@ pub fn node_sys_derive(input: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(input as DeriveInput);
     let name:  Ident       = input.ident;
 
-    // Expanded the code to host the boilerplate implementations of the Dynamic and NodeAbstract
-    // traits.
+    // Expanded the code to host the boilerplate implementations of the NodeAbstract, Deref, and
+    // DerefMut traits.
     let expanded = quote! {
-        impl Dynamic for #name {
-            fn to_any(&self) -> &dyn std::any::Any { self }
+        impl node_tree::traits::node::NodeAbstract for #name {
+            fn base(&self) -> &node_tree::structs::node_base::NodeBase {
+                &self.base
+            }
+
+            fn base_mut(&mut self) -> &mut node_tree::structs::node_base::NodeBase {
+                &mut self.base
+            }
+
+            fn as_dyn(&mut self) -> &mut dyn node_tree::traits::node::Node {
+                self
+            }
+
+            fn as_dyn_raw(&mut self) -> *mut dyn node_tree::traits::node::Node {
+                self as *mut dyn node_tree::traits::node::Node
+            }
+            
+            fn to_dyn_box(self) -> Box<dyn node_tree::traits::node::Node> {
+                Box::new(self)
+            }
         }
 
-        impl NodeAbstract for #name {
-            fn as_dyn(self: Hp<Self>) -> DynNode { self }
-            fn base(self: Hp<Self>) -> std::rc::Rc<NodeBase> { self.base.clone() }
+        impl std::ops::Deref for #name {
+            type Target = node_tree::structs::node_base::NodeBase;
+            fn deref(&self) -> &Self::Target {
+                &self.base
+            }
+        }
+
+        impl std::ops::DerefMut for #name {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.base
+            }
         }
     };
 

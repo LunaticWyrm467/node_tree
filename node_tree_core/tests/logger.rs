@@ -7,52 +7,70 @@ use node_tree::prelude::*;
 #[test]
 pub fn test_logger_bare() -> () {
     let mut logger: Logger = Logger::new(LoggerVerbosity::All);
-            logger.post(SystemCall::NodePath("../Grandparent/Parent/NodeA"), Log::Info("System A Initialized!"), None);
-            logger.post(SystemCall::NodePath("../Grandparent/Parent/NodeB"), Log::Warn("Some issue occurred! (Simulated Warning)"), None);
-            logger.post(SystemCall::NodePath("../Grandparent/Parent/NodeC"), Log::Panic("Some crash occured! (Simulated Crash)"), None);
+            logger.post_manual(SystemCall::NodePath("../Grandparent/Parent/NodeA".to_string()), Log::Info("System A Initialized!"));
+            logger.post_manual(SystemCall::NodePath("../Grandparent/Parent/NodeB".to_string()), Log::Warn("Some issue occurred! (Simulated Warning)"));
+            logger.post_manual(SystemCall::NodePath("../Grandparent/Parent/NodeC".to_string()), Log::Panic("Some crash occured! (Simulated Crash)"));
     
-    assert_eq!(logger.to_str().split("\n").collect::<Vec<_>>().len(), 12);
+    assert_eq!(logger.to_str().split("\n").collect::<Vec<_>>().len(), 5);
 }
 
 #[test]
 pub fn test_logger_tree() -> () {
     
+    // Enable backtrace.
+    unsafe {
+        std::env::set_var("RUST_BACKTRACE", "1");
+    }
+    
     // Create the tree.
-    let root: Hp<LoggerNode> = LoggerNode::new("Root".to_string());
-    let tree: Hp<NodeTree>   = NodeTree::new(root, LoggerVerbosity::NoDebug);
+    let     root: LoggerNode    = LoggerNode::new("Root".to_string());
+    let mut tree: Box<NodeTree> = NodeTree::new(root, LoggerVerbosity::NoDebug);
 
     // Begin operations on the tree.
     tree.start();
     tree.process();
 }
 
-#[derive(Debug, Clone, NodeSys)]
+#[derive(Debug, Abstract)]
 pub struct LoggerNode {
-    base: Rc<NodeBase>
+    base: NodeBase
 }
 
 impl LoggerNode {
-    fn new(name: String) -> Hp<Self> {
-        Hp::new(LoggerNode { base: NodeBase::new(name) })
+    fn new(name: String) -> Self {
+        LoggerNode { base: NodeBase::new(name) }
     }
 }
 
 impl Node for LoggerNode {
-    fn ready(self: Hp<Self>) -> () {
+    fn ready(&mut self) {
         if self.depth() < 3 {
-            self.add_child(LoggerNode::new(format!("{}_Node", self.depth() + 1)));
-            self.add_child(LoggerNode::new(format!("{}_Node", self.depth() + 1)));
-            self.add_child(LoggerNode::new(format!("{}_Node", self.depth() + 1)));
+            let new_depth: usize = self.depth() + 1;
+            
+            self.add_child(LoggerNode::new(format!("{}_Node", new_depth)));
+            self.add_child(LoggerNode::new(format!("{}_Node", new_depth)));
+            self.add_child(LoggerNode::new(format!("{}_Node", new_depth)));
         }
     }
 
-    fn process(self: Hp<Self>, _delta: f32) -> () {
-        if self.name() == "3_Node2" && self.parent().unwrap().parent().unwrap().name() == "1_Node" {
-            self.post_to_log(Log::Warn("Simulating warning!"));
+    fn process(&mut self, _delta: f32) {
+        if self.depth() != 3 {
+            return;
         }
 
-        if self.name() == "3_Node2" && self.parent().unwrap().parent().unwrap().name() == "1_Node2"{
-            self.post_to_log(Log::Panic("Simulating panic!"));
+        let grandparent_name: String = {
+            let parent:      &dyn Node = self.tree().unwrap().get_node(self.parent().unwrap()).unwrap();
+            let grandparent: &dyn Node = self.tree().unwrap().get_node(parent.parent().unwrap()).unwrap();
+            
+            grandparent.name().to_string()
+        };
+
+        if self.name() == "3_Node2" && &grandparent_name == "1_Node" {
+            self.post(Log::Warn("Simulating warning!"));
+        }
+
+        if self.name() == "3_Node2" && &grandparent_name == "1_Node2"{
+            self.post(Log::Panic("Simulating panic!"));
         }
     }
 }

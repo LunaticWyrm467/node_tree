@@ -1,2 +1,2 @@
-pub mod dynamic;
 pub mod node;
+pub mod node_getter;
