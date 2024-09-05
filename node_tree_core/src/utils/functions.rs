@@ -30,7 +30,7 @@ use crate::{ prelude::{ RID, NodeTree, Node }, structs::node_base::NodeStatus };
 
 /// Ensures that the name provided is unique relative to the list of other names.
 /// If it is not, then it will create a new unique name.
-pub fn ensure_unique_name(name: &str, relative_to: &[&str]) -> String {
+pub fn ensure_unique_name(name: &str, relative_to: &[String]) -> String {
     fn extract_numerical_suffix(s: &str) -> Option<usize> {
         let mut numerics: String = String::new();
         let mut ptr:      usize  = s.len() - 1;
@@ -113,7 +113,7 @@ pub fn draw_tree(node_tree: &NodeTree, origin: RID, view_up: usize, view_down: u
         if node.is_root() || view_left == 0 {
             return node;
         }
-        get_start(tree, unsafe { tree.get_node(node.parent().unwrap_unchecked()).unwrap_unchecked() }, view_left - 1)
+        get_start(tree, unsafe { tree.get_node(node.parent_dyn().unwrap_unchecked().rid()).unwrap_unchecked() }, view_left - 1)
     }
 
     let origin:    &dyn Node = node_tree.get_node(origin).unwrap();
@@ -131,13 +131,11 @@ pub fn draw_tree(node_tree: &NodeTree, origin: RID, view_up: usize, view_down: u
         let     node:  &dyn Node = unsafe { tree.get_node(node_rid).unwrap_unchecked() };
         let mut count: usize     = node.num_children();
 
-        for child_rid in node.children() {
+        for child in node.children() {
             count -= 1;
-            
-            let child:     &dyn Node = unsafe { tree.get_node(*child_rid).unwrap_unchecked() };
-            let connector: &str      = if count == 0 { FINAL_ENTRY } else { OTHER_ENTRY };
-
+            let     connector:  &str   = if count == 0 { FINAL_ENTRY } else { OTHER_ENTRY };
             let mut child_name: String = child.name().to_string();
+
             match child.status() {
                 NodeStatus::Normal => (),
 
@@ -155,7 +153,7 @@ pub fn draw_tree(node_tree: &NodeTree, origin: RID, view_up: usize, view_down: u
             *out += &format!("{}{}{}\n", prefix, connector, if level != 0 { child_name } else { "...".to_string() });
             if !child.childless() && level != 0 {
                 let new_prefix: String = format!("{}{}", prefix, if count == 0 { FINAL_CHILD } else { OTHER_CHILD });
-                walk(tree, *child_rid, &new_prefix, out, warnings, panics, level - 1);
+                walk(tree, child.rid(), &new_prefix, out, warnings, panics, level - 1);
             }
         }
     }

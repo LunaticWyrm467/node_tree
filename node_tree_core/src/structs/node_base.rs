@@ -31,7 +31,7 @@ use super::{
     logger::Log,
     node_path::NodePath,
     node_tree::NodeTree,
-    tree_pointer::Tp,
+    tree_pointer::{ Tp, TpDyn },
     rid::RID
 };
 
@@ -91,12 +91,12 @@ impl NodeBase {
     /// vector.
     /// Returns false if the operation fails.
     pub fn set_name(&mut self, name: &str) -> bool {
-        if let (Some(parent), Some(tree)) = (self.parent(), self.tree()) {
+        if let (Some(parent), Some(tree)) = (self.parent, self.tree()) {
             let mut is_unique: bool         = true;
             let     parent:    &dyn Node    = unsafe { tree.get_node(parent).unwrap_unchecked() };
-            let     siblings:  &[&str]      = &tree.get_all_valid_nodes(parent.children()).iter().map(|a| a.name()).collect::<Vec<_>>();
+            let     siblings:  &[String]    = &parent.children().iter().map(|a| a.name().to_string()).collect::<Vec<_>>();
 
-            for &sibling_name in siblings {
+            for sibling_name in siblings {
                 let self_name: &str = self.name();
                 if sibling_name == self_name { // Ignore THIS node.
                     continue;
@@ -132,14 +132,14 @@ impl NodeBase {
         }
 
         // Ensure that the child's name within the context of this node's children is unique.
-        let names_of_children: &[&str] = &unsafe { self.tree().unwrap_unchecked() }.get_all_valid_nodes(self.children()).iter().map(|c| c.name()).collect::<Vec<_>>();
-        let child_name:        &str    = child.name();
-        let unique_name:       String  = ensure_unique_name(&child_name, names_of_children);
+        let names_of_children: &[String] = &self.children().iter().map(|c| c.name().to_string()).collect::<Vec<_>>();
+        let child_name:        &str      = child.name();
+        let unique_name:       String    = ensure_unique_name(&child_name, names_of_children);
 
         // Add the child to this node's children and connect it to its parent and owner nodes,
         // as well as the root tree structure's reference.
         let child_rid: RID = unsafe {
-            let owner_rid:  RID           = self.owner().unwrap_unchecked();
+            let owner_rid:  RID           = self.owner.unwrap_unchecked();
             let parent_rid: RID           = self.rid;
             let new_depth:  usize         = self.depth() + 1; 
             let tree_raw:   *mut NodeTree = self.tree.unwrap_unchecked();
@@ -158,7 +158,7 @@ impl NodeBase {
             child.set_rid(rid);
             rid
         };
-        self.children_mut().push(child_rid);
+        self.children.push(child_rid);
         
         // Call the `ready()` function for the child.
         unsafe {
@@ -184,8 +184,7 @@ impl NodeBase {
         
         // Locate a child node that has the same name. If there is no matching node, then exist
         // early.
-        let children: Vec<RID>                       = self.children().to_owned();
-        let child:    Option<(usize, &mut dyn Node)> = unsafe { self.tree_mut().unwrap_unchecked() }.get_all_valid_nodes_mut(&children)
+        let child: Option<(usize, TpDyn)> = self.children()
             .into_iter()
             .enumerate()
             .find(|(_, c)| c.name() == name);
@@ -200,7 +199,7 @@ impl NodeBase {
             connected
         ): (usize, String, Vec<RID>) = unsafe { child.map(|(idx, child)| (idx, child.name().to_string(), child.top_down(true))).unwrap_unchecked() };
 
-        self.children_mut().remove(child_idx);
+        self.children.remove(child_idx);
         for (idx, queued_rid) in connected.into_iter().enumerate() { unsafe { 
             let _is_root_child: bool          = idx == 0; // TODO: Use this to save children nodes!
             let queued_node:    &mut dyn Node = self.tree_mut().unwrap_unchecked().get_node_mut(queued_rid).unwrap_unchecked();
@@ -216,24 +215,51 @@ impl NodeBase {
         true 
     }
 
-    /// Returns a child at the given index.
-    /// If there is no child at the given index, then the NodeQuery will be empty.
-    pub fn get_child(&self, i: usize) -> Option<RID> {
+    /// Returns a `Tp<T>` pointer to a child at the given index.
+    /// If there is no child at the given index, or if the wrong type is given, then `None` will be returned.
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn get_child<T: Node>(&self, i: usize) -> Option<Tp<T>> {
+        if self.tree().is_none() {
+            panic!("Cannot get a node from a node that is not a part of a NodeTree!");
+        }
+
         if i >= self.num_children() {
             None
         } else {
-            Some(self.children()[i])
+            unsafe {
+                Tp::new(self.tree.unwrap_unchecked(), self.children[i])
+            }
+        }
+    }
+    
+    /// Returns a `TpDyn` pointer to a child at the given index.
+    /// If there is no child at the given index then `None` will be returned.
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn get_child_dyn(&self, i: usize) -> Option<TpDyn> {
+        if self.tree().is_none() {
+            panic!("Cannot get a node from a node that is not a part of a NodeTree!");
+        }
+
+        if i >= self.num_children() {
+            None
+        } else {
+            unsafe {
+                Some(TpDyn::new(self.tree.unwrap_unchecked(), self.children[i]))
+            }
         }
     }
 
-    /// Gets a slice of this node's children.
-    pub fn children(&self) -> &[RID] {
-        &self.children
-    }
-    
-    /// Gets a mutable vector of this node's children.
-    pub fn children_mut(&mut self) -> &mut Vec<RID> {
-        &mut self.children
+    /// Gets a vector of `DynTp` to describe this node's children.
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn children(&self) -> Vec<TpDyn> {
+        if self.tree().is_none() {
+            panic!("Cannot get children from a node that is not a part of a NodeTree!");
+        }
+
+        self.children.iter().map(|&c| unsafe { TpDyn::new(self.tree.unwrap_unchecked(), c) }).collect()
     }
 
     /// Gets a `Tp<T>` or a Tree Pointer to a given `Node` via a `NodePath`.
@@ -250,6 +276,25 @@ impl NodeBase {
             Some(node_rid) => {
                 unsafe {
                     Tp::new(self.tree.unwrap_unchecked(), node_rid)
+                }
+            },
+            None => None
+        }
+    }
+
+    /// Gets a `TpDyn` or a Dynamic Tree Pointer to a given `Node` via a `NodePath`.
+    /// Returns `None` if the address is invalid.
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn get_node_dyn(&self, path: NodePath) -> Option<TpDyn> {
+        if self.tree().is_none() {
+            panic!("Cannot get a node from a node that is not a part of a NodeTree!");
+        }
+
+        match self.get_node_raw(path) {
+            Some(node_rid) => {
+                unsafe {
+                    Some(TpDyn::new(self.tree.unwrap_unchecked(), node_rid))
                 }
             },
             None => None
@@ -277,6 +322,26 @@ impl NodeBase {
         }
     }
 
+    /// Gets a `TpDyn` or a Dynamic Tree Pointer to a given `Node` via either a `NodePath`, a `&str`, or a
+    /// String (the latter two may be used to denote Singletons).
+    /// Returns `None` if the address is invalid.
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn get_node_dyn_from_tree<G: NodeGetter>(&self, path: G) -> Option<TpDyn> {
+        if self.tree().is_none() {
+            panic!("Cannot get a node from a node that is not a part of a NodeTree!");
+        }
+
+        match unsafe { self.tree().unwrap_unchecked() }.get_node_rid(path) {
+            Some(node_rid) => {
+                unsafe {
+                    Some(TpDyn::new(self.tree.unwrap_unchecked(), node_rid))
+                }
+            },
+            None => None
+        }
+    }
+
     /// Gets a node's `RID` given a `NodePath` that is respective to this node as the root.
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
@@ -288,7 +353,7 @@ impl NodeBase {
         let next_node: Option<String> = path.pop_front();
         match next_node {
             Some(target) => {
-                for node in unsafe { self.tree().unwrap_unchecked() }.get_all_valid_nodes(&self.children()) {
+                for node in self.children() {
                     if node.name() == target {
                         return node.get_node_raw(path);
                     }
@@ -322,7 +387,7 @@ impl NodeBase {
         
         let new_layer: Vec<RID> = unsafe { self.tree().unwrap_unchecked() }.get_all_valid_nodes(&layer)
             .into_iter()
-            .map(|node| node.children().to_owned() )
+            .map(|node| node.children.to_owned() )
             .flatten()
             .collect();
         if new_layer.is_empty() {
@@ -366,7 +431,7 @@ impl NodeBase {
         }
 
         let mut deepest_nodes: Vec<RID> = if self.childless() { vec![self.rid] } else { Vec::new() };
-        for node in unsafe { self.tree().unwrap_unchecked() }.get_all_valid_nodes(self.children()) {
+        for node in self.children() {
             deepest_nodes.append(&mut node.gather_deepest());
         }
         deepest_nodes
@@ -395,7 +460,7 @@ impl NodeBase {
         // We get the next layer by getting the node's parents and filtering out duplicates.
         let next_layer: Vec<RID> = filter_duplicates(unsafe { self.tree().unwrap_unchecked() }.get_all_valid_nodes(&layer)
             .iter()
-            .map(|node| node.parent().unwrap())
+            .map(|node| node.parent.unwrap())
             .collect());
         for node in layer {
             iter.push(node);
@@ -429,7 +494,7 @@ impl NodeBase {
         *path = self.name().to_string() + &(if path.is_empty() { String::new() } else { "/".to_string() + path });
         if !self.is_root() {
             unsafe {
-                self.tree().unwrap_unchecked().get_node(self.parent().unwrap_unchecked()).unwrap_unchecked().get_absolute_path_tail(path);
+                self.tree().unwrap_unchecked().get_node(self.parent.unwrap_unchecked()).unwrap_unchecked().get_absolute_path_tail(path);
             }
         }
     }
@@ -468,11 +533,11 @@ impl NodeBase {
         }
         
         // Remove the reference of this node from its parent if it has a parent.
-        if let Some(parent) = self.parent() {
+        if let Some(parent) = self.parent {
             unsafe {
                 let rid:       RID           = self.rid;
                 let parent:    &mut dyn Node = self.tree_mut().unwrap_unchecked().get_node_mut(parent).unwrap_unchecked();
-                let child_idx: usize         = parent.children().into_iter().position(|&c_rid| c_rid == rid).unwrap_unchecked();
+                let child_idx: usize         = parent.children.iter().position(|&c_rid| c_rid == rid).unwrap_unchecked();
                 
                 parent.children.remove(child_idx);
             }
@@ -537,7 +602,7 @@ impl NodeBase {
         self.tree = None;
     }
 
-    /// Gets the owner of the node.
+    /// Gets the `Tp<T>` owner of the node. Returns None if `T` does not match the owner's type.
     /// The owner is different from the parent. The owner can be thought as the root of the scene
     /// that this node is a part of, rather than the node's actual parent.
     /// In other words, if you had a node tree that looked like this:
@@ -549,10 +614,48 @@ impl NodeBase {
     ///   ╰NodeD
     ///```
     /// And you were to call `owner()` on `NodeD`, you would get `NodeA`.
+    ///
     /// # Note
     /// You can only have an owner on a node that is a part of a node tree.
-    pub fn owner(&self) -> Option<RID> {
-        self.owner
+    ///
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn owner<T: Node>(&self) -> Option<Tp<T>> {
+        if self.tree().is_none() {
+            panic!("Cannot get a node from a node that is not a part of a NodeTree!");
+        }
+        
+        unsafe {
+            Tp::new(self.tree.unwrap_unchecked(), self.owner.unwrap_unchecked())
+        }
+    }
+
+    /// Gets a `TpDyn` pointer to the owner of the node.
+    /// The owner is different from the parent. The owner can be thought as the root of the scene
+    /// that this node is a part of, rather than the node's actual parent.
+    /// In other words, if you had a node tree that looked like this:
+    /// ```text
+    /// ... <Higher Nodes>
+    /// ╰NodeA <Root of Saved Scene>
+    ///  ├NodeB
+    ///  ╰NodeC
+    ///   ╰NodeD
+    ///```
+    /// And you were to call `owner()` on `NodeD`, you would get `NodeA`.
+    ///
+    /// # Note
+    /// You can only have an owner on a node that is a part of a node tree.
+    ///
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn owner_dyn(&self) -> TpDyn {
+        if self.tree().is_none() {
+            panic!("Cannot get a node from a node that is not a part of a NodeTree!");
+        }
+        
+        unsafe {
+            TpDyn::new(self.tree.unwrap_unchecked(), self.owner.unwrap_unchecked())
+        }
     }
 
     /// Sets the owner of the node.
@@ -567,9 +670,44 @@ impl NodeBase {
         self.owner = None;
     }
 
-    /// Gets the direct parent of this node.
-    pub fn parent(&self) -> Option<RID> {
-        self.parent
+    /// Gets a `Tp<T>` pointer to the direct parent of this node, if the node has one.
+    /// Returns `None` if there is no parent or if `T` does not match the parent's type.
+    ///
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn parent<T: Node>(&self) -> Option<Tp<T>> {
+        if self.tree().is_none() {
+            panic!("Cannot get a node from a node that is not a part of a NodeTree!");
+        }
+        
+        match self.parent {
+            Some(parent) => {
+                unsafe {
+                    Tp::new(self.tree.unwrap_unchecked(), parent)
+                }
+            },
+            None => None
+        }
+    }
+    
+    /// Gets a `TpDyn` pointer to the direct parent of this node, if the node has one.
+    /// Returns `None` if there is no parent.
+    ///
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn parent_dyn(&self) -> Option<TpDyn> {
+        if self.tree().is_none() {
+            panic!("Cannot get a node from a node that is not a part of a NodeTree!");
+        }
+        
+        match self.parent {
+            Some(parent) => {
+                unsafe {
+                    Some(TpDyn::new(self.tree.unwrap_unchecked(), parent))
+                }
+            },
+            None => None
+        }
     }
 
     /// Sets the parent of this node.
@@ -610,12 +748,12 @@ impl NodeBase {
     /// This means that the node is not connected to a tree nor is connected to any other node
     /// aside from any of its children.
     pub fn is_stray(&self) -> bool {
-        self.parent().is_none() && self.owner().is_none()
+        self.parent.is_none() && self.owner.is_none()
     }
 
     /// Returns true if this node is the root node.
     pub fn is_root(&self) -> bool {
-        self.parent().is_none() && self.in_tree()
+        self.parent.is_none() && self.in_tree()
     }
 
     /// Returns if this node is a part of the node tree.

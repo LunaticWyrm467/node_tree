@@ -310,7 +310,7 @@ impl NodeTree {
         }
 
         // Go through each of the children and process them, perpetuating the recursive cycle.
-        for child_node in node.children().to_owned() {
+        for child_node in node.children().into_iter().map(|c| c.rid()).collect::<Vec<_>>() {
             self.process_tail(child_node, delta, process_mode.clone());
             if self.status == TreeStatus::Terminated {
                 break;

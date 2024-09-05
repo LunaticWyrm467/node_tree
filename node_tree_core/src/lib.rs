@@ -53,6 +53,6 @@ pub mod prelude {
 
     pub use std::rc::Rc;
     pub use node_tree_derive::Abstract;
-    pub use crate::structs::{ rid::RID, logger::{ LoggerVerbosity, Log }, node_base::NodeBase, node_path::NodePath, node_tree::NodeTree, tree_pointer::Tp };
+    pub use crate::structs::{ rid::RID, logger::{ LoggerVerbosity, Log }, node_base::NodeBase, node_path::NodePath, node_tree::NodeTree, tree_pointer::{ Tp, TpDyn } };
     pub use crate::traits::node::{ Node, NodeAbstract };
 }

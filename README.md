@@ -131,8 +131,8 @@ impl Node for LoggerNode {
         }
 
         let grandparent_name: String = {
-            let parent:      &dyn Node = self.tree().unwrap().get_node(self.parent().unwrap()).unwrap();
-            let grandparent: &dyn Node = self.tree().unwrap().get_node(parent.parent().unwrap()).unwrap();
+            let parent:      Tp<LoggerNode> = self.parent().unwrap();
+            let grandparent: Tp<LoggerNode> = parent.parent().unwrap();
             
             grandparent.name().to_string()
         };
@@ -217,9 +217,9 @@ Goodbye World! (Program Exited)
 - 🏗️ An easy abstraction framework for different processes to communicate and interact with each other in a scalable manner. Inspired by Godot!
 - ⏯️ The ability to `pause()` and `unpause()` the `NodeTree`, and fine tune individual `Node` behaviours for when a tree is paused/unpaused.
 - 📡 Various methods to communicate with other nodes, such as `owner()`, `parent()`, `get_child()`, `children()`, and `get_node()`.
-- 🔗 An abstracted smart pointer known as `Hp<T>` which clones implicitly to reduce syntax noise and allows for low boilerplate.
+- 🔗 An abstracted smart pointer known as `Tp<T>` and `TpDyn` which clones implicitly to reduce syntax noise and allows for low boilerplate.
+- 📚 A caching system hosted on the `NodeTree` to act as a safe interface to ensure `Tp<T>`/`TpDyn` soundness, and increase performance!
 - 👪 The ability to manage nodes with `add_child()` and `remove_child()`.
 - 📝 Includes a dynamic logging system that is deeply integrated with the node framework.
 - 🌲 Allows for the direct referencing of the `NodeTree` through a node's `root()` function.
-- 📚 TODO: A caching system hosted on the `NodeTree` to act as a safe interface to ensure the `Hp<T>` soundness, and increase performance!
 - 📜 TODO: Includes a method to save and handle individual node scenes, such as the handy visual macro `Scene!`.

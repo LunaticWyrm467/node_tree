@@ -57,8 +57,8 @@ impl Node for LoggerNode {
         }
 
         let grandparent_name: String = {
-            let parent:      &dyn Node = self.tree().unwrap().get_node(self.parent().unwrap()).unwrap();
-            let grandparent: &dyn Node = self.tree().unwrap().get_node(parent.parent().unwrap()).unwrap();
+            let parent:      Tp<LoggerNode> = self.parent().unwrap();
+            let grandparent: Tp<LoggerNode> = parent.parent().unwrap();
             
             grandparent.name().to_string()
         };
