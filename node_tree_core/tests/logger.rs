@@ -1,5 +1,3 @@
-#![feature(arbitrary_self_types)]
-
 use node_tree::structs::logger::{ Logger, SystemCall };
 use node_tree::prelude::*;
 

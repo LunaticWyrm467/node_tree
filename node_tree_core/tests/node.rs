@@ -1,4 +1,3 @@
-#![feature(arbitrary_self_types)]
 use node_tree::prelude::*;
 
 
