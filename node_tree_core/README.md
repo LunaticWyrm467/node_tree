@@ -7,9 +7,7 @@
 **NodeTree** is a framework to create large scalable programs and games through a tree of processes. Each process is fully autonomous and is capable of storing its own state or data, and communicating with other processes. These processes are known as Nodes.
 
 **⚠️WARNING⚠️**<br>
-THIS IS A NIGHTLY-DEPENDENT CRATE.<br>
 This crate is in early development. Beware of possible bugs or safety violations.<br>
-The specific nightly version this crate uses is v1.78.
 
 ## Getting Started!
 Simply either run `cargo add node_tree` at the terminal directed towards the directory of your project, or add `node_tree = X.X` to your `cargo.toml` file.
