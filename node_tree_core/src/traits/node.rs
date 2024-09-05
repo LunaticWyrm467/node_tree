@@ -23,6 +23,7 @@
 //! `private::Sealed`, and `Node`.
 //!
 
+use std::any::Any;
 use std::ops::{ Deref, DerefMut };
 
 use crate::structs::{ node_base::NodeBase, node_tree::ProcessMode };
@@ -30,7 +31,7 @@ use crate::structs::{ node_base::NodeBase, node_tree::ProcessMode };
 
 /// This implements of of the node's abstract behaviours.
 /// This, along with `Node` must be implemented in order to create a new node.
-pub trait NodeAbstract: Deref<Target = NodeBase> + DerefMut + std::fmt::Debug {
+pub trait NodeAbstract: Deref<Target = NodeBase> + DerefMut + Any + std::fmt::Debug {
     
     /// Returns a reference to the `NodeBase` object.
     fn base(&self) -> &NodeBase;
@@ -46,6 +47,12 @@ pub trait NodeAbstract: Deref<Target = NodeBase> + DerefMut + std::fmt::Debug {
 
     /// Converts this into a Boxed type.
     fn to_dyn_box(self) -> Box<dyn Node>;
+
+    /// Converts this into an Any type.
+    fn as_any(&self) -> &dyn Any;
+
+    /// Converts this into a mutable Any type.
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 
@@ -72,7 +79,7 @@ pub trait Node: NodeAbstract {
     /// # Note
     /// Any node at the root of the scene tree with the `Inherit` property will by default inherit
     /// the `Pausable` process mode.
-    fn process_mode(&mut self) -> ProcessMode {
+    fn process_mode(&self) -> ProcessMode {
         ProcessMode::Inherit
     }
 }

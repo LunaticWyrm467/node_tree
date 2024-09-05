@@ -19,6 +19,5 @@ Inspired by Godot!
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-chrono = "0.4.38"
-nanoid = "0.4.0"
+chrono           = "0.4.38"
 node_tree_derive = { path = "../node_tree_derive", version = "0.1.0" }

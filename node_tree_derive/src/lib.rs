@@ -63,6 +63,14 @@ pub fn node_sys_derive(input: TokenStream) -> TokenStream {
             fn to_dyn_box(self) -> Box<dyn node_tree::traits::node::Node> {
                 Box::new(self)
             }
+
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
+
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
         }
 
         impl std::ops::Deref for #name {

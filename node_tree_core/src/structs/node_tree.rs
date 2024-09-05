@@ -195,6 +195,12 @@ impl NodeTree {
         }
     }
 
+    /// Gets a raw pointer to a node reference given an `RID`.
+    /// Returns `None` if the `RID` is invalid.
+    pub fn get_node_raw(&self, rid: RID) -> Option<*const dyn Node> {
+        self.nodes.retrieve(rid).map(|node| *node as *const dyn Node)
+    }
+
     /// Gets a reference to a node reference given an `RID`.
     /// Returns `None` if the `RID` is invalid.
     pub fn get_node(&self, rid: RID) -> Option<&dyn Node> {
@@ -214,6 +220,12 @@ impl NodeTree {
             .filter_map(|rid| self.nodes.retrieve(*rid).map(|node| unsafe { &**node })).collect::<Vec<_>>()
     }
     
+    /// Gets a raw mutable pointer to a node reference given an `RID`.
+    /// Returns `None` if the `RID` is invalid.
+    pub fn get_node_mut_raw(&self, rid: RID) -> Option<*mut dyn Node> {
+        self.nodes.retrieve(rid).map(|node| *node)
+    }
+
     /// Gets a mutable reference to a node reference given an `RID`.
     /// Returns `None` if the `RID` is invalid.
     pub fn get_node_mut(&mut self, rid: RID) -> Option<&mut dyn Node> {

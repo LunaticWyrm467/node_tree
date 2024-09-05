@@ -31,11 +31,12 @@
 //!   ╰NodeD
 //!```
 //! You want to get NodeD from NodeA, so you would therefore do something like this:
-//! ```
+//! ```rust,ignore
 //! use node_tree::prelude::*;
 //!
 //! fn example(node_a: &dyn Node) -> () {
-//!     let node_d: RID = node_a.get_node_raw(NodePath::from_str("NodeC/NodeD")).unwrap();
+//!     let path_d: NodePath         = NodePath::from_str("NodeC/NodeD");
+//!     let node_d: Tp<YourNodeType> = node_a.get_node(path_d).unwrap();
 //!     // ... Do whatever
 //! }
 //! ```

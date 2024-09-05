@@ -25,16 +25,18 @@
 //! Every `Node` type must contain a `base: Rc<NodeBase>` field for this reason.
 //!
 
-use std::{collections::HashSet, hash::Hash};
+use std::{ collections::HashSet, hash::Hash };
 
 use super::{
     logger::Log,
     node_path::NodePath,
     node_tree::NodeTree,
+    tree_pointer::Tp,
     rid::RID
 };
 
 use crate::prelude::Node;
+use crate::traits::node_getter::NodeGetter;
 use crate::utils::functions::ensure_unique_name;
 
 
@@ -234,7 +236,48 @@ impl NodeBase {
         &mut self.children
     }
 
-    /// Gets a node given a `NodePath` that is respective to this node as the root.
+    /// Gets a `Tp<T>` or a Tree Pointer to a given `Node` via a `NodePath`.
+    /// Returns `None` if the address is invalid or if the referenced `Node` is not of the type
+    /// `T`.
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn get_node<T: Node>(&self, path: NodePath) -> Option<Tp<T>> {
+        if self.tree().is_none() {
+            panic!("Cannot get a node from a node that is not a part of a NodeTree!");
+        }
+
+        match self.get_node_raw(path) {
+            Some(node_rid) => {
+                unsafe {
+                    Tp::new(self.tree.unwrap_unchecked(), node_rid)
+                }
+            },
+            None => None
+        }
+    }
+    
+    /// Gets a `Tp<T>` or a Tree Pointer to a given `Node` via either a `NodePath`, a `&str`, or a
+    /// String (the latter two may be used to denote Singletons).
+    /// Returns `None` if the address is invalid or if the referenced `Node` is not of the type
+    /// `T`.
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn get_node_from_tree<T: Node, G: NodeGetter>(&self, path: G) -> Option<Tp<T>> {
+        if self.tree().is_none() {
+            panic!("Cannot get a node from a node that is not a part of a NodeTree!");
+        }
+
+        match unsafe { self.tree().unwrap_unchecked() }.get_node_rid(path) {
+            Some(node_rid) => {
+                unsafe {
+                    Tp::new(self.tree.unwrap_unchecked(), node_rid)
+                }
+            },
+            None => None
+        }
+    }
+
+    /// Gets a node's `RID` given a `NodePath` that is respective to this node as the root.
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn get_node_raw(&self, mut path: NodePath) -> Option<RID> {

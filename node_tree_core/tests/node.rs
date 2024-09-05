@@ -48,7 +48,7 @@ impl Node for NodeA {
     fn process(&mut self, delta: f32) -> () {
         println!("{} | {}", self.name(), 1f32 / delta);
         if self.is_root() {
-            match self.get_node_raw(NodePath::from_str("1_Node/2_Node1/3_Node2")) {
+            match self.get_node::<NodeA>(NodePath::from_str("1_Node/2_Node1/3_Node2")) {
                 Some(node) => println!("{:?}", node),
                 None       => ()
             }
