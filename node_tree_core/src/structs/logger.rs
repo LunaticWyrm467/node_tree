@@ -31,8 +31,8 @@ use std::time::SystemTime;
 use chrono::{ DateTime, Utc };
 
 
-use super::node_tree::NodeIdentity;
-use crate::prelude::{ RID, NodeTree };
+use super::node_tree_base::NodeIdentity;
+use crate::prelude::{ RID, NodeTreeBase };
 use crate::utils::functions::draw_tree;
 
 
@@ -185,12 +185,12 @@ impl Logger {
         self.crash_footer = msg.to_string();
     }
 
-    /// Posts a new message to the log using the NodeTree as a reference.
+    /// Posts a new message to the log using the `NodeTreeBase` as a reference.
     /// This will return whether the NodeTree should quit or not.
     /// # Safety
     /// This is marked unsafe because there is no way to validate that the passed in pointer to the
     /// NodeTree is valid.
-    pub unsafe fn post(&mut self, calling: RID, log: Log, node_tree: *mut NodeTree) -> bool {
+    pub unsafe fn post(&mut self, calling: RID, log: Log, node_tree: *mut NodeTreeBase) -> bool {
         match &self.verbosity_lv {
             LoggerVerbosity::All        => {},
             LoggerVerbosity::NoDebug    => if log.is_debug() { return false; },
@@ -198,8 +198,8 @@ impl Logger {
             LoggerVerbosity::OnlyPanics => if !log.is_panic() { return false; }
         }
         
-        let node_tree: &NodeTree  = &*node_tree;
-        let system:    SystemCall = {
+        let node_tree: &NodeTreeBase = &*node_tree;
+        let system:    SystemCall    = {
             match node_tree.get_node_identity(calling) {
                 Some(NodeIdentity::NodePath)         => SystemCall::NodePath(unsafe { node_tree.get_node(calling).unwrap_unchecked() }.get_absolute_path().to_string()),
                 Some(NodeIdentity::UniqueName(name)) => SystemCall::Named(name),

@@ -47,12 +47,23 @@
 pub mod structs;
 pub mod traits;
 pub mod utils;
+pub mod trees;
 pub mod prelude {
     //! Contains everything you'll need to create and handle Nodes and NodeTrees.
     //! You'll probably want to import all from this module.
 
     pub use std::rc::Rc;
     pub use node_tree_derive::Abstract;
-    pub use crate::structs::{ rid::RID, logger::{ LoggerVerbosity, Log }, node_base::NodeBase, node_path::NodePath, node_tree::NodeTree, tree_pointer::{ Tp, TpDyn } };
-    pub use crate::traits::node::{ Node, NodeAbstract };
+    pub use crate::structs::{
+        rid::RID,
+        logger::{ LoggerVerbosity, Log },
+        node_base::NodeBase,
+        node_path::NodePath,
+        node_tree_base::{ NodeTreeBase, TreeStatus, TreeProcess, ProcessMode },
+        tree_pointer::{ Tp, TpDyn }
+    };
+    pub use crate::traits::{
+        node::{ Node, NodeAbstract },
+        node_tree::{ NodeTree, init_base }
+    };
 }

@@ -34,7 +34,7 @@
 //! ```rust,ignore
 //! use node_tree::prelude::*;
 //!
-//! fn example(node_a: &dyn Node) -> () {
+//! fn example(node_a: &dyn Node) {
 //!     let path_d: NodePath         = NodePath::from_str("NodeC/NodeD");
 //!     let node_d: Tp<YourNodeType> = node_a.get_node(path_d).unwrap();
 //!     // ... Do whatever
@@ -44,7 +44,7 @@
 use std::collections::VecDeque;
 
 use crate::traits::node_getter::NodeGetter;
-use super::{ node_tree::NodeTree, rid::RID };
+use super::{ node_tree_base::NodeTreeBase, rid::RID };
 
 
 /// A NodePath is a specialized string that holds a map for the NodeTree to follow and to retrieve
@@ -96,7 +96,7 @@ impl NodePath {
 }
 
 impl NodeGetter for NodePath {
-    fn get_from(&self, tree: &NodeTree) -> Option<RID> {
+    fn get_from(&self, tree: &NodeTreeBase) -> Option<RID> {
         let mut absolute_path: Self = self.clone();
         if Some(tree.root().name()) != absolute_path.pop_front().as_deref() {
             return None;

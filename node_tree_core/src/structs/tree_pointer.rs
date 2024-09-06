@@ -30,8 +30,8 @@ use std::ops::{ Deref, DerefMut };
 use std::any::Any;
 use std::marker::PhantomData;
 
-use super::{ rid::RID, node_tree::NodeTree };
-use crate::traits::node::Node;
+use super::rid::RID;
+use crate::traits::{ node::Node, node_tree::NodeTree };
 
 
 /*
@@ -53,7 +53,7 @@ use crate::traits::node::Node;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Tp<'a, T: Node> {
     node:   RID,
-    tree:   *mut NodeTree,
+    tree:   *mut dyn NodeTree,
     p_life: PhantomData<&'a ()>,
     p_type: PhantomData<T>
 }
@@ -70,7 +70,7 @@ impl <'a, T: Node> Tp<'a, T> {
     ///
     /// # Failure
     /// Will not return a valid `Tp<T>` pointer if the types do not match!
-    pub unsafe fn new(tree: *mut NodeTree, node: RID) -> Option<Self> {
+    pub unsafe fn new(tree: *mut dyn NodeTree, node: RID) -> Option<Self> {
         
         // First check if the types match using dynamic dispatch!
         match (&*tree).get_node(node) {
@@ -229,7 +229,7 @@ impl <'a, T: Node> DerefMut for Tp<'a, T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TpDyn<'a> {
     node:   RID,
-    tree:   *mut NodeTree,
+    tree:   *mut dyn NodeTree,
     p_life: PhantomData<&'a ()>
 }
 
@@ -242,7 +242,7 @@ impl <'a> TpDyn<'a> {
     /// programmer.
     /// However, it is advised to use a `Node`'s `get_node()` or `get_node_from_tree()`
     /// function to have it be constructed in a safe manner for you!
-    pub unsafe fn new(tree: *mut NodeTree, node: RID) -> Self {
+    pub unsafe fn new(tree: *mut dyn NodeTree, node: RID) -> Self {
         TpDyn {
             node,
             tree,

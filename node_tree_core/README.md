@@ -32,7 +32,7 @@ impl NodeA {
 impl Node for NodeA {
 
     /// Runs once the Node is added to the NodeTree.
-    fn ready(&mut self) -> () {
+    fn ready(&mut self) {
 
         // To show off how you could add children nodes.
         if self.depth() < 3 {
@@ -49,7 +49,7 @@ impl Node for NodeA {
     }
 
     /// Runs once per frame. Provides a delta value in seconds between frames.
-    fn process(&mut self, delta: f32) -> () {
+    fn process(&mut self, delta: f32) {
 
         // Example of using the delta value to calculate the current framerate.
         println!("{} | {}", self.name(), 1f32 / delta);
@@ -72,7 +72,7 @@ impl Node for NodeA {
     }
 
     /// Runs once a Node is removed from the NodeTree, whether that is from the program itself terminating or not.
-    fn terminal(&mut self) -> () {}   // We do not do anything here for this example.
+    fn terminal(&mut self) {}   // We do not do anything here for this example.
 
     /// Returns this node's process mode.
     /// Each process mode controls how the process() function behaves when the NodeTree is paused or not.
@@ -115,7 +115,7 @@ impl LoggerNode {
 }
 
 impl Node for LoggerNode {
-    fn ready(&mut self) -> () {
+    fn ready(&mut self) {
         if self.depth() < 3 {
             let new_depth: usize = self.depth() + 1;
             
@@ -125,7 +125,7 @@ impl Node for LoggerNode {
         }
     }
 
-    fn process(self: Hp<Self>, _delta: f32) -> () {
+    fn process(&mut self, _delta: f32) {
         if self.depth() != 3 {
             return;
         }

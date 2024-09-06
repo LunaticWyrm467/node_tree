@@ -32,7 +32,7 @@ impl NodeA {
 impl Node for NodeA {
 
     /// Runs once the Node is added to the NodeTree.
-    fn ready(&mut self) -> () {
+    fn ready(&mut self) {
 
         // To show off how you could add children nodes.
         if self.depth() < 3 {
@@ -49,7 +49,7 @@ impl Node for NodeA {
     }
 
     /// Runs once per frame. Provides a delta value in seconds between frames.
-    fn process(&mut self, delta: f32) -> () {
+    fn process(&mut self, delta: f32) {
 
         // Example of using the delta value to calculate the current framerate.
         println!("{} | {}", self.name(), 1f32 / delta);
@@ -72,7 +72,7 @@ impl Node for NodeA {
     }
 
     /// Runs once a Node is removed from the NodeTree, whether that is from the program itself terminating or not.
-    fn terminal(&mut self) -> () {}   // We do not do anything here for this example.
+    fn terminal(&mut self) {}   // We do not do anything here for this example.
 
     /// Returns this node's process mode.
     /// Each process mode controls how the process() function behaves when the NodeTree is paused or not.
@@ -87,16 +87,22 @@ impl Node for NodeA {
 Finally, in order to activate our `NodeTree`, we must instance the root `Node` and feed it into the `NodeTree` constructor.
 ```rust
 // ...previous implementations
+use node_tree::trees::tree_simple::TreeSimple;
+
 
 fn main() -> () {
 
     // Create the tree.
-    let root: NodeA         = NodeA::new("Root".to_string());
-    let tree: Box<NodeTree> = NodeTree::new(root, LoggerVerbosity::NoDebug);
+    let root: NodeA           = NodeA::new("Root".to_string());
+    let tree: Box<TreeSimple> = TreeSimple::new(root, LoggerVerbosity::NoDebug);
 
     // Begin operations on the tree.
     tree.start();
-    tree.process();   // This will run an indefinite loop until the program exits.
+    loop {
+        if tree.process().has_terminated() {
+            break;
+        }
+    }
 }
 ```
 
@@ -115,7 +121,7 @@ impl LoggerNode {
 }
 
 impl Node for LoggerNode {
-    fn ready(&mut self) -> () {
+    fn ready(&mut self) {
         if self.depth() < 3 {
             let new_depth: usize = self.depth() + 1;
             
@@ -125,7 +131,7 @@ impl Node for LoggerNode {
         }
     }
 
-    fn process(self: Hp<Self>, _delta: f32) -> () {
+    fn process(&mut self, _delta: f32) {
         if self.depth() != 3 {
             return;
         }

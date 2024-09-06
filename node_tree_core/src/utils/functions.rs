@@ -25,7 +25,7 @@
 //! Contains utility functions used throughout the crate.
 //!
 
-use crate::{ prelude::{ RID, NodeTree, Node }, structs::node_base::NodeStatus };
+use crate::{ prelude::{ RID, NodeTreeBase, Node }, structs::node_base::NodeStatus };
 
 
 /// Ensures that the name provided is unique relative to the list of other names.
@@ -108,8 +108,8 @@ pub fn ensure_unique_name(name: &str, relative_to: &[String]) -> String {
 /// Takes in a NodeTree and prints out a graphical representation with a node as the origin.
 /// `view_up` is the amount of layers of nodes above the origin that are drawn (parent, grandparent, etc), and `view_down` is the amount
 /// of layers of nodes below the origin that are drawn (children, etc).
-pub fn draw_tree(node_tree: &NodeTree, origin: RID, view_up: usize, view_down: usize) -> String {
-    fn get_start<'a>(tree: &'a NodeTree, node: &'a dyn Node, view_left: usize) -> &'a dyn Node {
+pub fn draw_tree(node_tree: &NodeTreeBase, origin: RID, view_up: usize, view_down: usize) -> String {
+    fn get_start<'a>(tree: &'a NodeTreeBase, node: &'a dyn Node, view_left: usize) -> &'a dyn Node {
         if node.is_root() || view_left == 0 {
             return node;
         }
@@ -127,7 +127,8 @@ pub fn draw_tree(node_tree: &NodeTree, origin: RID, view_up: usize, view_down: u
     
     let mut warnings: Vec<String> = Vec::new();
     let mut panics:   Vec<String> = Vec::new();
-    fn walk(tree: &NodeTree, node_rid: RID, prefix: &str, out: &mut String, warnings: &mut Vec<String>, panics: &mut Vec<String>, level: usize) -> () {
+
+    fn walk(tree: &NodeTreeBase, node_rid: RID, prefix: &str, out: &mut String, warnings: &mut Vec<String>, panics: &mut Vec<String>, level: usize) -> () {
         let     node:  &dyn Node = unsafe { tree.get_node(node_rid).unwrap_unchecked() };
         let mut count: usize     = node.num_children();
 

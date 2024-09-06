@@ -1,13 +1,13 @@
 //===================================================================================================================================================================================//
 //
-//  /$$   /$$                 /$$                 /$$$$$$$$                           
-// | $$$ | $$                | $$                |__  $$__/                           
-// | $$$$| $$  /$$$$$$   /$$$$$$$  /$$$$$$          | $$  /$$$$$$   /$$$$$$   /$$$$$$ 
-// | $$ $$ $$ /$$__  $$ /$$__  $$ /$$__  $$         | $$ /$$__  $$ /$$__  $$ /$$__  $$
-// | $$  $$$$| $$  \ $$| $$  | $$| $$$$$$$$         | $$| $$  \__/| $$$$$$$$| $$$$$$$$
-// | $$\  $$$| $$  | $$| $$  | $$| $$_____/         | $$| $$      | $$_____/| $$_____/
-// | $$ \  $$|  $$$$$$/|  $$$$$$$|  $$$$$$$         | $$| $$      |  $$$$$$$|  $$$$$$$
-// |__/  \__/ \______/  \_______/ \_______/         |__/|__/       \_______/ \_______/
+//  /$$   /$$                 /$$                 /$$$$$$$$                                  /$$$$$$$                               
+// | $$$ | $$                | $$                |__  $$__/                                 | $$__  $$                              
+// | $$$$| $$  /$$$$$$   /$$$$$$$  /$$$$$$          | $$  /$$$$$$   /$$$$$$   /$$$$$$       | $$  \ $$  /$$$$$$   /$$$$$$$  /$$$$$$ 
+// | $$ $$ $$ /$$__  $$ /$$__  $$ /$$__  $$         | $$ /$$__  $$ /$$__  $$ /$$__  $$      | $$$$$$$  |____  $$ /$$_____/ /$$__  $$
+// | $$  $$$$| $$  \ $$| $$  | $$| $$$$$$$$         | $$| $$  \__/| $$$$$$$$| $$$$$$$$      | $$__  $$  /$$$$$$$|  $$$$$$ | $$$$$$$$
+// | $$\  $$$| $$  | $$| $$  | $$| $$_____/         | $$| $$      | $$_____/| $$_____/      | $$  \ $$ /$$__  $$ \____  $$| $$_____/
+// | $$ \  $$|  $$$$$$/|  $$$$$$$|  $$$$$$$         | $$| $$      |  $$$$$$$|  $$$$$$$      | $$$$$$$/|  $$$$$$$ /$$$$$$$/|  $$$$$$$
+// |__/  \__/ \______/  \_______/ \_______/         |__/|__/       \_______/ \_______/      |_______/  \_______/|_______/  \_______/
 //
 //===================================================================================================================================================================================//
 
@@ -19,37 +19,55 @@
 //?
 
 //!
-//! The `NodeTree` is the core of your program. It handles process frames, pausing, etc.
+//! The `NodeTreeBase` is the core of your program. It handles process frames, pausing, etc.
 //!
 //! # Example
-//! To get one to work, simply instantiate a root node - whichever node you deem necessary - and
+//! To get one to work, you'll need to create a `NodeTree` wrapper struct for it. Here, we'll be
+//! using the `TreeSimple` struct which is provided by this library. It is a simple implementation
+//! which is useful for cases where you won't be using another framework.
+//!
+//! Simply start out by instantiate a root node - whichever node you deem necessary - and
 //! feed it to the tree's constructor.
 //! Finally, run the `start()` and `process()` functions in that order. 
 //! ```rust,ignore
-//! #![feature(arbitrary_self_types)]   // Required for now.
+//! use node_tree::trees::tree_simple::TreeSimple;
 //! use node_tree::prelude::*;
 //! 
-//! fn main() -> () {
+//! fn main() {
 //!     
 //!     // Create the tree.
-//!     let root: YourNodeType  = todo!();   // Run your custom node type's constructor here. 
-//!     let tree: Box<NodeTree> = NodeTree::new(root, LoggerVerbosity::NoDebug);
+//!     let root: YourNodeType    = todo!();   // Run your custom node type's constructor here. 
+//!     let tree: Box<TreeSimple> = TreeSimple::new(root, LoggerVerbosity::NoDebug);
 //! 
 //!     // Begin operations on the tree.
 //!     tree.start();
-//!     tree.process();   // This will run an indefinite loop until the program exits.
+//!     loop {
+//!        if tree.process().has_terminated() {
+//!            break;
+//!        }
+//!    }
 //! }
 //! ```
 
 use std::collections::{HashMap, HashSet};
 use std::time::{ Duration, Instant };
 
-use crate::traits::{ node::Node, node_getter::NodeGetter };
+use crate::traits::{ node::Node, node_tree::NodeTree, node_getter::NodeGetter };
 use super::logger::*;
 use super::node_base::NodeStatus;
 use super::rid::{ RID, RIDHolder };
 
 
+/*
+ * Node Tree
+ *      Enums
+ */
+
+
+/// Determines how a Node handles its `process()` function.
+/// You may wish to have some nodes be active always, be pausible, or only run when the program is
+/// paused.
+/// `Inherit` is for nodes whose behaviour is inherited from parent nodes.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ProcessMode {
     Inherit,
@@ -58,13 +76,52 @@ pub enum ProcessMode {
     Inverse,
 }
 
+/// Determines the tree's current behaviour.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TreeStatus {
+
+    /// The tree of processes has not started yet. `start()` must be ran before the `process()`
+    /// method!
     Idle,
-    Running,
-    Paused,
-    QueuedTermination,
+
+    /// The tree is currently processing standard frame-based behaviours.
+    Process(TreeProcess),
+
+    /// The tree is waiting for the current frame of processes to finish before going into
+    /// `Terminating` mode.
+    QueuedTermination(TreeProcess),
+
+    /// A single frame where each node calls its `terminal()` method.
+    Terminating,
+
+    /// The tree is no longer active and the program can be shut down.
     Terminated
+}
+
+impl TreeStatus {
+    
+    /// Determines if the tree is still active.
+    /// E.g. not `Idle` or `Terminated`.
+    pub fn is_active(&self) -> bool {
+        match self {
+            Self::Idle | Self::Terminated => false,
+            _                             => true
+        }
+    }
+
+    /// Determines if the tree has terminated.
+    pub fn has_terminated(&self) -> bool {
+        match self {
+            Self::Terminated => true,
+            _                => false
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TreeProcess {
+    Running,
+    Paused
 }
 
 #[derive(Debug, Clone)]
@@ -85,38 +142,58 @@ impl NodeIdentity {
 }
 
 
+/*
+ * Node Tree
+ *      Base
+ */
+
+
 /// Holds a tree of self-managing processes or nodes in a structure that allows for the creation of
 /// large scale programs or games.
 #[derive(Debug)]
-pub struct NodeTree {
+pub struct NodeTreeBase {
     logger:     Logger,
     nodes:      RIDHolder<*mut dyn Node>,
     identity:   HashMap<RID, NodeIdentity>,
     singletons: HashMap<String, RID>,
-    status:     TreeStatus
+    status:     TreeStatus,
+    last_frame: Instant
 }
 
-impl NodeTree {
+impl NodeTreeBase {
 
     /// The RID for the root node.
     const ROOT_RID: RID = 0;
     
-    /// Creates a new NodeTree with the given root node.
-    pub fn new<N: Node>(root: N, logger_verbosity: LoggerVerbosity) -> Box<Self> {
+    /// Creates a new NodeTreeBase with the pointer to the outer `NodeTree` struct and the given root node.
+    ///
+    /// # Note
+    /// The `outer` struct MUST be allocated on the heap! Using `Box<T>` will work just fine, and
+    /// you'll be able to get a raw pointer by dereferencing the `Box<T>` like so:
+    /// ```rust
+    /// let mut foo: Box<usize> = Box::new(0);
+    /// let     bar: *mut usize = &mut *foo;
+    /// ```
+    ///
+    /// # Safety
+    /// This is marked as unsafe because it relies on a raw pointer being passed in.
+    /// It is undefined behaviour if the outer struct is not allocated on the heap.
+    /// ...
+    pub unsafe fn new<N: Node>(outer: *mut dyn NodeTree, root: N, logger_verbosity: LoggerVerbosity) -> Self {
 
         // Creates a new RID holder which stores all of the Nodes.
         let mut nodes: RIDHolder<*mut dyn Node> = RIDHolder::new();
         let     _:     RID                      = nodes.push(Box::into_raw(root.to_dyn_box())); // This will ALWAYS be zero!
 
-        // Create the base NodeTree.
-        let mut node_tree: Box<NodeTree> = Box::new(NodeTree {
+        // Create the NodeTreeBase.
+        let mut node_tree: NodeTreeBase = NodeTreeBase {
             logger:     Logger::new(logger_verbosity),
             nodes,
             identity:   HashMap::new(),
             singletons: HashMap::new(),
-            status:     TreeStatus::Idle
-        });
-        let tree: *mut NodeTree = &mut *node_tree;
+            status:     TreeStatus::Idle,
+            last_frame: Instant::now()
+        };
 
         // Since this is the root node, it's 'owner' will be itself.
         // It will also have no parent.
@@ -125,7 +202,7 @@ impl NodeTree {
 
             root.set_rid(Self::ROOT_RID);
             root.set_owner(Self::ROOT_RID);
-            root.set_tree(tree);
+            root.set_tree(outer);
         }
 
         let root: &dyn Node = node_tree.root();
@@ -140,45 +217,58 @@ impl NodeTree {
 
     /// Runs the starting process behaviour -
     /// (any code under all initialized node's `ready()` functions).
+    ///
+    /// # Panics
+    /// This will panic if the tree status is anything but `Idle` (you cannot start a tree twice).
     pub fn start(&mut self) {
+        match self.status {
+            TreeStatus::Idle => (),
+            _                => panic!("Attempted to start() a NodeTree with a status of {:?}!", self.status)
+        }
+
         for node in self.get_all_valid_nodes_mut(&self.root().bottom_up(true)) {
             node.ready();
         }
-        
-        self.status = TreeStatus::Running;
+        self.status = TreeStatus::Process(TreeProcess::Running);
     }
 
-    /// Runs the process behaviour of the Node Tree -
+    /// Runs the process behaviour of the Node Tree for a single frame -
     /// (any code under all initialized node's `process()` functions).
-    /// This function will run in a loop forever until the program terminates internally.
+    /// This returns the `TreeStatus`
     /// 
     /// # Panics
     /// This function will panic if the start() function hasn't ran before this function was
     /// called.
-    pub fn process(&mut self) {
-        let mut now: Instant = Instant::now();
-        loop {
+    pub fn process(&mut self) -> TreeStatus {
 
-            // Calculate the delta time in between frames.
-            let elapsed: Duration = now.elapsed();
-            let delta:   f32      = elapsed.as_secs_f32();
-            now = Instant::now();
+        // Return early if the tree is no longer active.
+        if !self.status.is_active() {
+            return self.status;
+        }
 
-            // Reset the prior frame's node statuses.
-            for node in self.get_nodes_mut(&self.root().top_down(true)) {
-                unsafe {
-                    node.unwrap_unchecked().set_status(NodeStatus::Normal);
-                }
-            }
-            
-            // Process the node tree recursively.
-            self.process_tail(Self::ROOT_RID, delta, ProcessMode::Pausable);
-            
-            // If the tree is queued for termination, then quit the program.
-            if self.status == TreeStatus::QueuedTermination || self.status == TreeStatus::Terminated {
-                break;
+        // Calculate the delta time in between frames.
+        let now:     Instant  = Instant::now();
+        let elapsed: Duration = now.duration_since(self.last_frame);
+        let delta:   f32      = elapsed.as_secs_f32();
+        self.last_frame       = now;
+
+        // Reset the prior frame's node statuses.
+        for node in self.get_nodes_mut(&self.root().top_down(true)) {
+            unsafe {
+                node.unwrap_unchecked().set_status(NodeStatus::Normal);
             }
         }
+
+        // Process the node tree recursively.
+        self.process_tail(Self::ROOT_RID, delta, ProcessMode::Pausable);
+
+        // Check the tree's status.
+        match self.status {
+            TreeStatus::QueuedTermination(_) => self.status = TreeStatus::Terminating,
+            TreeStatus::Terminating          => self.status = TreeStatus::Terminated,
+            _                                => ()
+        }
+        self.status
     }
 
     /// Gets a reference to the Root node.
@@ -262,8 +352,13 @@ impl NodeTree {
     /// Calls to this function results in the program terminating.
     /// This doesn't terminate the program itself, rather it just queues the program for
     /// self-termination.
+    /// # Note
+    /// This does nothing if termination has already been queued.
     pub fn queue_termination(&mut self) {
-        self.status = TreeStatus::QueuedTermination;
+        match self.status {
+            TreeStatus::Process(process) => self.status = TreeStatus::QueuedTermination(process),
+            _                            => ()
+        }
     }
 
     /// Immediately terminates the program without running any termination behaviours.
@@ -286,27 +381,30 @@ impl NodeTree {
         // rules.
         match status {
             TreeStatus::Idle => panic!("The function `start()` was not called before the program was ran!"),
+            TreeStatus::Process(process) | TreeStatus::QueuedTermination(process) => {
+                match process {
+                    TreeProcess::Running => {
+                        match process_mode {
+                            ProcessMode::Inherit  => panic!("Inherited process mode not set!"),
+                            ProcessMode::Always   => node.process(delta),
+                            ProcessMode::Pausable => node.process(delta),
+                            ProcessMode::Inverse  => ()
+                        }
+                    },
 
-            TreeStatus::Running => {
-                match process_mode {
-                    ProcessMode::Inherit  => panic!("Inherited process mode not set!"),
-                    ProcessMode::Always   => node.process(delta),
-                    ProcessMode::Pausable => node.process(delta),
-                    ProcessMode::Inverse  => ()
-                }
-            },
-
-            TreeStatus::Paused => {
-                match process_mode {
-                    ProcessMode::Inherit  => panic!("Inherited process mode not set!"),
-                    ProcessMode::Always   => node.process(delta),
-                    ProcessMode::Pausable => (),
-                    ProcessMode::Inverse  => node.process(delta)
+                    TreeProcess::Paused => {
+                        match process_mode {
+                            ProcessMode::Inherit  => panic!("Inherited process mode not set!"),
+                            ProcessMode::Always   => node.process(delta),
+                            ProcessMode::Pausable => (),
+                            ProcessMode::Inverse  => node.process(delta)
+                        }
+                    }
                 }
             }
-
-            TreeStatus::QueuedTermination => node.terminal(),
-            TreeStatus::Terminated        => ()
+            
+            TreeStatus::Terminating => node.terminal(),
+            TreeStatus::Terminated  => ()
         }
 
         // Go through each of the children and process them, perpetuating the recursive cycle.
@@ -384,7 +482,7 @@ impl NodeTree {
 
     /// Posts a new message to the log.
     pub fn post(&mut self, calling: RID, log: Log) {
-        let ptr: *mut NodeTree = self;
+        let ptr: *mut NodeTreeBase = self;
         unsafe {
             if self.logger.post(calling, log, ptr) {
                 self.terminate();
@@ -400,13 +498,13 @@ impl NodeTree {
 
 
 impl <'a> NodeGetter for &'a str {
-    fn get_from(&self, tree: &NodeTree) -> Option<RID> {
+    fn get_from(&self, tree: &NodeTreeBase) -> Option<RID> {
         self.to_string().get_from(tree)
     }
 }
 
 impl NodeGetter for String {
-    fn get_from(&self, tree: &NodeTree) -> Option<RID> {
+    fn get_from(&self, tree: &NodeTreeBase) -> Option<RID> {
         tree.singletons.get(self).copied()
     }
 }

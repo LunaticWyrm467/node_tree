@@ -19,14 +19,13 @@
 //?
 
 //!
-//! Stores important traits required to create a fully-fledged `Node` type, such as `NodeAbstract`,
-//! `private::Sealed`, and `Node`.
+//! Stores important traits required to create a fully-fledged `Node` type, such as `NodeAbstract`and `Node`.
 //!
 
 use std::any::Any;
 use std::ops::{ Deref, DerefMut };
 
-use crate::structs::{ node_base::NodeBase, node_tree::ProcessMode };
+use crate::structs::{ node_base::NodeBase, node_tree_base::ProcessMode };
 
 
 /// This implements of of the node's abstract behaviours.
@@ -40,10 +39,16 @@ pub trait NodeAbstract: Deref<Target = NodeBase> + DerefMut + Any + std::fmt::De
     fn base_mut(&mut self) -> &mut NodeBase;
     
     /// Gets this as a dynamic Node object.
-    fn as_dyn(&mut self) -> &mut dyn Node;
+    fn as_dyn(&self) -> &dyn Node;
+    
+    /// Gets this as a mutable dynamic Node object.
+    fn as_dyn_mut(&mut self) -> &mut dyn Node;
 
     /// Gets this as a raw pointer to a dynamic Node object.
-    fn as_dyn_raw(&mut self) -> *mut dyn Node;
+    fn as_dyn_raw(&self) -> *const dyn Node;
+
+    /// Gets this as a raw mutable pointer to a dynamic Node object.
+    fn as_dyn_raw_mut(&mut self) -> *mut dyn Node;
 
     /// Converts this into a Boxed type.
     fn to_dyn_box(self) -> Box<dyn Node>;

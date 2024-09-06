@@ -30,13 +30,12 @@ use std::{ collections::HashSet, hash::Hash };
 use super::{
     logger::Log,
     node_path::NodePath,
-    node_tree::NodeTree,
+    node_tree_base::NodeTreeBase,
     tree_pointer::{ Tp, TpDyn },
     rid::RID
 };
 
-use crate::prelude::Node;
-use crate::traits::node_getter::NodeGetter;
+use crate::traits::{ node::Node, node_tree::NodeTree, node_getter::NodeGetter };
 use crate::utils::functions::ensure_unique_name;
 
 
@@ -58,7 +57,7 @@ pub struct NodeBase {
     rid:      RID,
     parent:   Option<RID>,
     owner:    Option<RID>,
-    tree:     Option<*mut NodeTree>,  // Lifetimes are managed by the NodeTree/Nodes
+    tree:     Option<*mut dyn NodeTree>,  // Lifetimes are managed by the NodeTree/Nodes
     children: Vec<RID>,
     status:   NodeStatus,
     depth:    usize   // How far the Node is within the tree.
@@ -139,11 +138,11 @@ impl NodeBase {
         // Add the child to this node's children and connect it to its parent and owner nodes,
         // as well as the root tree structure's reference.
         let child_rid: RID = unsafe {
-            let owner_rid:  RID           = self.owner.unwrap_unchecked();
-            let parent_rid: RID           = self.rid;
-            let new_depth:  usize         = self.depth() + 1; 
-            let tree_raw:   *mut NodeTree = self.tree.unwrap_unchecked();
-            let tree:       &mut NodeTree = self.tree_mut().unwrap_unchecked();
+            let owner_rid:  RID               = self.owner.unwrap_unchecked();
+            let parent_rid: RID               = self.rid;
+            let new_depth:  usize             = self.depth() + 1; 
+            let tree_raw:   *mut dyn NodeTree = self.tree.unwrap_unchecked();
+            let tree:       &mut dyn NodeTree = self.tree_mut().unwrap_unchecked();
 
             child.set_name_unchecked(&unique_name);
             child.set_parent(parent_rid);
@@ -545,7 +544,7 @@ impl NodeBase {
         
         // Remove this node and all children nodes from the NodeTree.
         for node in self.bottom_up(true) {
-            let tree: &mut NodeTree = unsafe { self.tree_mut().unwrap_unchecked() };  // UB: Error!
+            let tree: &mut NodeTreeBase = unsafe { self.tree_mut().unwrap_unchecked() };  // UB: Error!
             unsafe {
                 tree.unregister_node(node);
             }
@@ -577,7 +576,7 @@ impl NodeBase {
 
     /// Gets a reference to the owning `NodeTree` structure, which controls the entire tree.
     /// This will return `None` if the node is not connected to the `NodeTree`.
-    pub fn tree(&self) -> Option<&NodeTree> {
+    pub fn tree(&self) -> Option<&dyn NodeTree> {
         unsafe {
             self.tree.map(|x| &*x)
         }
@@ -585,14 +584,14 @@ impl NodeBase {
 
     /// Gets a mutable reference to the owning `NodeTree` structure, which controls the entire tree.
     /// This will return `None` if the node is not connected to the `NodeTree`.
-    pub fn tree_mut(&mut self) -> Option<&mut NodeTree> {
+    pub fn tree_mut(&mut self) -> Option<&mut dyn NodeTree> {
         unsafe {
             self.tree.map(|x| &mut *x)
         }
     }
 
     /// Sets the reference to the owning `NodeTree` structure.
-    pub unsafe fn set_tree(&mut self, tree: *mut NodeTree) {
+    pub unsafe fn set_tree(&mut self, tree: *mut dyn NodeTree) {
         self.tree = Some(tree);
     }
 

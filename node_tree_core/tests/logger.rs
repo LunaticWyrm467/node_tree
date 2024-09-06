@@ -1,4 +1,5 @@
 use node_tree::structs::logger::{ Logger, SystemCall };
+use node_tree::trees::tree_simple::TreeSimple;
 use node_tree::prelude::*;
 
 
@@ -21,12 +22,16 @@ pub fn test_logger_tree() -> () {
     }
     
     // Create the tree.
-    let     root: LoggerNode    = LoggerNode::new("Root".to_string());
-    let mut tree: Box<NodeTree> = NodeTree::new(root, LoggerVerbosity::NoDebug);
+    let     root: LoggerNode      = LoggerNode::new("Root".to_string());
+    let mut tree: Box<TreeSimple> = TreeSimple::new(root, LoggerVerbosity::NoDebug);
 
     // Begin operations on the tree.
     tree.start();
-    tree.process();
+    loop {
+        if tree.process().has_terminated() {
+            break;
+        }
+    }
 }
 
 #[derive(Debug, Abstract)]
