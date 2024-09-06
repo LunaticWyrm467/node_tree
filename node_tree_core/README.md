@@ -87,16 +87,22 @@ impl Node for NodeA {
 Finally, in order to activate our `NodeTree`, we must instance the root `Node` and feed it into the `NodeTree` constructor.
 ```rust
 // ...previous implementations
+use node_tree::trees::tree_simple::TreeSimple;
+
 
 fn main() -> () {
 
     // Create the tree.
-    let root: NodeA         = NodeA::new("Root".to_string());
-    let tree: Box<NodeTree> = NodeTree::new(root, LoggerVerbosity::NoDebug);
+    let root: NodeA           = NodeA::new("Root".to_string());
+    let tree: Box<TreeSimple> = TreeSimple::new(root, LoggerVerbosity::NoDebug);
 
     // Begin operations on the tree.
     tree.start();
-    tree.process();   // This will run an indefinite loop until the program exits.
+    loop {
+        if tree.process().has_terminated() {
+            break;
+        }
+    }
 }
 ```
 
