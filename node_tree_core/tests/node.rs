@@ -10,9 +10,65 @@ fn test_node_integration() {
         std::env::set_var("RUST_BACKTRACE", "1");
     }
 
+    // Initialize the NodeScene.
+    let scene: NodeScene = scene! {
+        NodeA("Root") {
+            NodeA("1_Node") {
+                NodeA("2_Node") {
+                    NodeA("3_Node"),
+                    NodeA("3_Node"),
+                    NodeA("3_Node")
+                },
+                NodeA("2_Node") {
+                    NodeA("3_Node"),
+                    NodeA("3_Node"),
+                    NodeA("3_Node")
+                },
+                NodeA("2_Node") {
+                    NodeA("3_Node"),
+                    NodeA("3_Node"),
+                    NodeA("3_Node")
+                }
+            },
+            NodeA("1_Node") {
+                NodeA("2_Node") {
+                    NodeA("3_Node"),
+                    NodeA("3_Node"),
+                    NodeA("3_Node")
+                },
+                NodeA("2_Node") {
+                    NodeA("3_Node"),
+                    NodeA("3_Node"),
+                    NodeA("3_Node")
+                },
+                NodeA("2_Node") {
+                    NodeA("3_Node"),
+                    NodeA("3_Node"),
+                    NodeA("3_Node")
+                }
+            },
+            NodeA("1_Node") {
+                NodeA("2_Node") {
+                    NodeA("3_Node"),
+                    NodeA("3_Node"),
+                    NodeA("3_Node")
+                },
+                NodeA("2_Node") {
+                    NodeA("3_Node"),
+                    NodeA("3_Node"),
+                    NodeA("3_Node")
+                },
+                NodeA("2_Node") {
+                    NodeA("3_Node"),
+                    NodeA("3_Node"),
+                    NodeA("3_Node")
+                }
+            }
+        }
+    };
+
     // Create the tree.
-    let     root: NodeA           = NodeA::new("Root".to_string());
-    let mut tree: Box<TreeSimple> = TreeSimple::new(root, LoggerVerbosity::NoDebug);
+    let mut tree: Box<TreeSimple> = TreeSimple::new(scene, LoggerVerbosity::NoDebug);
 
     // Begin operations on the tree.
     tree.start();
@@ -30,20 +86,13 @@ pub struct NodeA {
 }
 
 impl NodeA {
-    fn new(name: String) -> Self {
-        NodeA { base: NodeBase::new(name) }
+    fn new(name: &str) -> Self {
+        NodeA { base: NodeBase::new(name.to_string()) }
     }
 }
 
 impl Node for NodeA {
     fn ready(&mut self) -> () {
-        if self.depth() < 3 {
-            let depth_new: usize = self.depth() + 1;
-
-            self.add_child(NodeA::new(format!("{}_Node", depth_new)));
-            self.add_child(NodeA::new(format!("{}_Node", depth_new)));
-            self.add_child(NodeA::new(format!("{}_Node", depth_new)));
-        }
         if self.is_root() {
             println!("{:?}", self.children());
         }

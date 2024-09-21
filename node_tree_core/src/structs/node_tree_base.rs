@@ -52,7 +52,7 @@
 use std::collections::{HashMap, HashSet};
 use std::time::{ Duration, Instant };
 
-use crate::traits::{ node::Node, node_tree::NodeTree, node_getter::NodeGetter };
+use crate::traits::{ node::Node, node_tree::NodeTree, node_getter::NodeGetter, instanceable::Instanceable };
 use super::logger::*;
 use super::node_base::NodeStatus;
 use super::rid::{ RID, RIDHolder };
@@ -164,6 +164,25 @@ impl NodeTreeBase {
 
     /// The RID for the root node.
     const ROOT_RID: RID = 0;
+
+    /// Creates an empty `NodeTreeBase`, ready for initialization.
+    unsafe fn new(logger_verbosity: LoggerVerbosity) -> Self {
+
+        // Creates a new RID holder which stores all of the Nodes.
+        let nodes: RIDHolder<*mut dyn Node> = RIDHolder::new();
+
+        // Create the NodeTreeBase.
+        let node_tree: NodeTreeBase = NodeTreeBase {
+            logger:     Logger::new(logger_verbosity),
+            nodes,
+            identity:   HashMap::new(),
+            singletons: HashMap::new(),
+            status:     TreeStatus::Idle,
+            last_frame: Instant::now()
+        };
+        
+        node_tree
+    }
     
     /// Creates a new NodeTreeBase with the pointer to the outer `NodeTree` struct and the given root node.
     ///
@@ -179,40 +198,34 @@ impl NodeTreeBase {
     /// This is marked as unsafe because it relies on a raw pointer being passed in.
     /// It is undefined behaviour if the outer struct is not allocated on the heap.
     /// ...
-    pub unsafe fn new<N: Node>(outer: *mut dyn NodeTree, root: N, logger_verbosity: LoggerVerbosity) -> Self {
+    unsafe fn initialize<I: Instanceable>(&mut self, outer: *mut dyn NodeTree, scene: I) {
 
-        // Creates a new RID holder which stores all of the Nodes.
-        let mut nodes: RIDHolder<*mut dyn Node> = RIDHolder::new();
-        let     _:     RID                      = nodes.push(Box::into_raw(root.to_dyn_box())); // This will ALWAYS be zero!
+        // Go through each node that needs to be instanced in the scene.
+        scene.iterate(|parent, node| {
+            if let Some(parent) = parent {
+                let parent: &mut dyn Node = unsafe { &mut *parent };
+                parent.add_child_from_ptr(node, false);
+            } else {
+                self.identity.insert(Self::ROOT_RID, NodeIdentity::NodePath);
 
-        // Create the NodeTreeBase.
-        let mut node_tree: NodeTreeBase = NodeTreeBase {
-            logger:     Logger::new(logger_verbosity),
-            nodes,
-            identity:   HashMap::new(),
-            singletons: HashMap::new(),
-            status:     TreeStatus::Idle,
-            last_frame: Instant::now()
-        };
+                // Since this is the root node, it's 'owner' will be itself.
+                // It will also have no parent.
+                let root: &mut dyn Node = unsafe { &mut *node };
+                unsafe {
+                    root.set_rid(Self::ROOT_RID);
+                    root.set_owner(Self::ROOT_RID);
+                    root.set_tree(outer);
+                }
 
-        // Since this is the root node, it's 'owner' will be itself.
-        // It will also have no parent.
-        unsafe {
-            let root: &mut dyn Node = node_tree.root_mut();
-
-            root.set_rid(Self::ROOT_RID);
-            root.set_owner(Self::ROOT_RID);
-            root.set_tree(outer);
-        }
-
-        let root: &dyn Node = node_tree.root();
-        node_tree.logger.post_manual(
-            SystemCall::Named("NodeTree".to_string()),
-            Log::Debug(&format!(
-                    "Node \"{}\" added to the scene as the root of the NodeTree! Unique ID of \"{}\" generated!",
-                    root.name(), root.rid()
-        )));
-        node_tree
+                self.logger.post_manual(
+                    SystemCall::Named("NodeTree".to_string()),
+                    Log::Debug(&format!(
+                            "Node \"{}\" added to the scene as the root of the NodeTree! Unique ID of \"{}\" generated!",
+                            root.name(), root.rid()
+                    )));
+                self.nodes.push(node);
+            }
+        });
     }
 
     /// Runs the starting process behaviour -
@@ -418,14 +431,21 @@ impl NodeTreeBase {
 
     /// Registers the node to the tree and gives it a unique RID.
     /// This should not be used manually.
-    pub unsafe fn register_node(&mut self, node: Box<dyn Node>) -> RID {
-        let rid: RID = self.nodes.push(Box::into_raw(node));
+    ///
+    /// # Safety
+    /// Assumes that the pointer was created from a box like so:
+    /// ```rust,ignore
+    /// Box::into_raw(Box::new(node))
+    /// ```
+    pub unsafe fn register_node(&mut self, node: *mut dyn Node) -> RID {
+        let rid: RID = self.nodes.push(node);
         self.identity.insert(rid, NodeIdentity::NodePath);
         rid
     }
 
-    /// Unregisters a node from the tree, returning the Node if it existed.
+    /// Unregisters a node from the tree, returning the Node as a `Box<T>` if it existed.
     /// This should not be used manually.
+    ///
     /// # Note
     /// This does not check if the Node was a singleton and thus cannot be unregistered.
     pub unsafe fn unregister_node(&mut self, rid: RID) -> Option<Box<dyn Node>> {
@@ -506,5 +526,20 @@ impl <'a> NodeGetter for &'a str {
 impl NodeGetter for String {
     fn get_from(&self, tree: &NodeTreeBase) -> Option<RID> {
         tree.singletons.get(self).copied()
+    }
+}
+
+
+/// Initializes the base `NodeTreeBase` field in a `NodeTree` inherited object.
+///
+/// # Safety
+/// It is UNDEFINED behaviour to NOT call this function within a tree implementation's constructor.
+pub fn initialize_base<T: NodeTree, I: Instanceable>(tree: &mut Box<T>, scene: I, verbosity: LoggerVerbosity) {
+    let base: NodeTreeBase = unsafe { NodeTreeBase::new(verbosity) };
+    unsafe {
+        tree.set_base(base);
+
+        let tree_ptr: *mut dyn NodeTree = tree.as_dyn_raw_mut();
+        tree.base_mut().initialize(tree_ptr, scene);
     }
 }

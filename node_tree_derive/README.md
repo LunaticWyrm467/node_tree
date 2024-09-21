@@ -106,6 +106,34 @@ fn main() -> () {
 }
 ```
 
+You may also input a `NodeScene` when initializing a `NodeTree` or adding a child via `add_child`:
+```rust
+use node_tree::prelude::*;
+
+
+let scene: NodeScene = scene! {
+    NodeA("Root") { // Nodes must have a constructor named `new()` in order for this to work!
+        NodeA("1_Node") {
+            NodeA("2_Node") {
+                NodeA("3_Node"),
+                    NodeA("3_Node"),
+                    NodeA("3_Node")
+            },
+            NodeA("2_Node") {
+                NodeA("3_Node"),
+                NodeA("3_Node"),
+                NodeA("3_Node")
+            },
+            NodeA("2_Node") {
+                NodeA("3_Node"),
+                NodeA("3_Node"),
+                NodeA("3_Node")
+            }
+        }
+    }
+};
+```
+
 Logging is also supported. Here is an example setup with an output of a few warnings and a crash. Note that the crash header/footer are customizable, and that the output is actually colored in a real terminal.
 ```rust
 /// Root Node
@@ -228,4 +256,4 @@ Goodbye World! (Program Exited)
 - 👪 The ability to manage nodes with `add_child()` and `remove_child()`.
 - 📝 Includes a dynamic logging system that is deeply integrated with the node framework.
 - 🌲 Allows for the direct referencing of the `NodeTree` through a node's `root()` function.
-- 📜 TODO: Includes a method to save and handle individual node scenes, such as the handy visual macro `Scene!`.
+- 📜 Includes a method to save (TODO) and handle individual node scenes, such as the handy visual macro `scene!`.

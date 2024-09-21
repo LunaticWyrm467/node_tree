@@ -30,7 +30,15 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{ parse_macro_input, DeriveInput, Ident };
+use syn::{ parse_macro_input, DeriveInput, Ident, parse::{ Parse, ParseStream }, Token };
+use proc_macro2::TokenStream as TokenStream2;
+
+
+/*
+ * Node
+ *      Abstract
+ */
+
 
 /// Implements all of the required traits for a `Node` type to be created aside from the `Node`
 /// trait itself, which needs to be implemented manually.
@@ -100,6 +108,13 @@ pub fn r#abstract(input: TokenStream) -> TokenStream {
     // Return the generated impl as a TokenStream
     TokenStream::from(expanded)
 }
+
+
+/*
+ * Tree
+ *      Abstract
+ */
+
 
 /// Implements all of the required traits for a `NodeTree` type to be created.
 #[proc_macro_derive(Tree)]
@@ -174,5 +189,79 @@ pub fn tree(input: TokenStream) -> TokenStream {
     };
 
     // Return the generated impl as a TokenStream
+    TokenStream::from(expanded)
+}
+
+
+/*
+ * Scene
+ *      Macro
+ */
+
+
+struct SceneNode {
+    node_type: Ident,
+    params:    syn::ExprParen,
+    children:  Vec<SceneNode>,
+}
+
+impl Parse for SceneNode {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let node_type: Ident          = input.parse()?;
+        let params:    syn::ExprParen = input.parse()?;
+        
+        let mut children: Vec<SceneNode> = Vec::new();
+        if input.peek(syn::token::Brace) {
+            let content;
+            syn::braced!(content in input);
+
+            while !content.is_empty() {
+                children.push(content.parse()?);
+                if !content.is_empty() {
+                    content.parse::<Token![,]>()?;
+                }
+            }
+        }
+        
+        Ok(SceneNode {
+            node_type,
+            params,
+            children,
+        })
+    }
+}
+
+fn generate_node(node: &SceneNode) -> TokenStream2 {
+    let node_type: &Ident            = &node.node_type;
+    let params:    &syn::ExprParen   = &node.params;
+    let children:  Vec<TokenStream2> = node.children.iter().map(generate_node).collect();
+    
+    quote! {
+        {
+            let mut scene: NodeScene = NodeScene::new(#node_type::new #params);
+            #(
+                scene.append(#children);
+            )*
+            scene
+        }
+    }
+}
+
+/// Allows for the easy implementation of a `NodeScene`, like so:
+/// ```rust,ignore
+/// use node_tree::prelude::*;
+///
+/// let scene: NodeScene = scene! {
+///     Node1(param1, param2) {
+///         Node2(param1),
+///         Node3()
+///     },
+///     Node4()
+/// };
+/// ```
+#[proc_macro]
+pub fn scene(input: TokenStream) -> TokenStream {
+    let root:     SceneNode    = parse_macro_input!(input as SceneNode);
+    let expanded: TokenStream2 = generate_node(&root);
     TokenStream::from(expanded)
 }

@@ -26,6 +26,7 @@ use std::any::Any;
 use std::ops::{ Deref, DerefMut };
 
 use crate::structs::{ node_base::NodeBase, node_tree_base::ProcessMode };
+use super::instanceable::Instanceable;
 
 
 /// This implements of of the node's abstract behaviours.
@@ -86,5 +87,11 @@ pub trait Node: NodeAbstract {
     /// the `Pausable` process mode.
     fn process_mode(&self) -> ProcessMode {
         ProcessMode::Inherit
+    }
+}
+
+impl <N: Node> Instanceable for N {
+    fn iterate<F: FnMut(Option<*mut dyn Node>, *mut dyn Node)>(self, mut iterator: F) {
+        iterator(None, Box::into_raw(self.to_dyn_box()));
     }
 }

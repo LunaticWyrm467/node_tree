@@ -35,7 +35,7 @@ use super::{
     rid::RID
 };
 
-use crate::traits::{ node::Node, node_tree::NodeTree, node_getter::NodeGetter };
+use crate::traits::{ node::Node, node_tree::NodeTree, node_getter::NodeGetter, instanceable::Instanceable };
 use crate::utils::functions::ensure_unique_name;
 
 
@@ -121,18 +121,46 @@ impl NodeBase {
 
     /// Adds a child to the node, automatically renaming it if its name is not unique in the
     /// node's children vector.
+    ///
     /// # Note
     /// `_ready()` will automatically be propogated through the added child node.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn add_child<N: Node>(&mut self, mut child: N) {
+    pub fn add_child<I: Instanceable>(&mut self, child: I) {
+        child.iterate(|parent, node| {
+            if let Some(parent) = parent {
+                unsafe {
+                    let parent: &mut dyn Node = &mut *parent;
+                    parent.add_child_from_ptr(node, false);
+                }
+            } else {
+                unsafe {
+                    self.add_child_from_ptr(node, true);
+                }
+            }
+        });
+    }
+
+    /// Adds a child to the node via a passed in pointer, automatically renaming it if its
+    /// name is not unique in the node's children vector.
+    ///
+    /// # Note
+    /// `_ready()` will automatically be propogated through the added child node.
+    ///
+    /// # Safety
+    /// Cannot guarantee that the raw pointer that is passed in is valid.
+    ///
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub unsafe fn add_child_from_ptr(&mut self, child_ptr: *mut dyn Node, owner_is_self: bool) {
         if self.tree.is_none() {
             panic!("Cannot add a child to a node that is not in a `NodeTree`!");
         }
 
         // Ensure that the child's name within the context of this node's children is unique.
         let names_of_children: &[String] = &self.children().iter().map(|c| c.name().to_string()).collect::<Vec<_>>();
-        let child_name:        &str      = child.name();
+        let child_name:        &str      = unsafe { &*child_ptr }.name();
         let unique_name:       String    = ensure_unique_name(&child_name, names_of_children);
 
         // Add the child to this node's children and connect it to its parent and owner nodes,
@@ -143,16 +171,15 @@ impl NodeBase {
             let new_depth:  usize             = self.depth() + 1; 
             let tree_raw:   *mut dyn NodeTree = self.tree.unwrap_unchecked();
             let tree:       &mut dyn NodeTree = self.tree_mut().unwrap_unchecked();
+            
+            let rid:   RID           = tree.register_node(child_ptr);
+            let child: &mut dyn Node = tree.get_node_mut(rid).unwrap_unchecked();
 
             child.set_name_unchecked(&unique_name);
             child.set_parent(parent_rid);
-            child.set_owner(owner_rid);   // For now, we just propagate the root as the owner for all nodes.
+            child.set_owner(if owner_is_self { rid } else { owner_rid });
             child.set_tree(tree_raw);
             child.set_depth(new_depth);   // This is the only place where depth is updated.
-            
-            let child_ptr: Box<dyn Node> = child.to_dyn_box();
-            let rid:       RID           = tree.register_node(child_ptr);
-            let child:     &mut dyn Node = tree.get_node_mut(rid).unwrap_unchecked();
             
             child.set_rid(rid);
             rid

@@ -26,8 +26,6 @@
 use std::any::Any;
 use std::ops::{ Deref, DerefMut };
 
-use super::node::Node;
-use crate::structs::logger::LoggerVerbosity;
 use crate::structs::node_tree_base::NodeTreeBase;
 
 
@@ -39,6 +37,29 @@ use crate::structs::node_tree_base::NodeTreeBase;
 
 /// Every application that wishes to take advantage of the `NodeTree` system must have its root
 /// struct inherit from this.
+///
+/// # Example
+/// Here is an example implementation:
+/// ```rust
+/// use node_tree::prelude::*;
+///
+/// #[derive(Debug, Tree)]
+/// pub struct TreeSimple {
+///     base: Option<NodeTreeBase>
+/// }
+/// 
+/// impl TreeSimple {
+///     pub fn new<I: Instanceable>(scene: I, verbosity: LoggerVerbosity) -> Box<Self> {
+///         let mut tree: Box<TreeSimple> = Box::new(TreeSimple {
+///             base: None
+///         });
+///         
+///         initialize_base(&mut tree, scene, verbosity); // Not running this will cause undefined behaviour!
+///         tree
+///     }
+/// }
+/// ```
+/// Note that the `Tree` should be initialized on the heap, preferably with a Box<T> pointer.
 pub trait NodeTree: Deref<Target = NodeTreeBase> + DerefMut + Any {
 
     /// Sets the `NodeTreeBase` struct.
@@ -68,13 +89,3 @@ pub trait NodeTree: Deref<Target = NodeTreeBase> + DerefMut + Any {
     /// Converts this into a mutable Any type.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
-
-
-/// Initializes the base `NodeTreeBase` field in a `NodeTree` inherited object.
-pub fn init_base<T: NodeTree, N: Node>(tree: &mut Box<T>, root: N, verbosity: LoggerVerbosity) {
-    let base: NodeTreeBase = unsafe { NodeTreeBase::new(tree.as_dyn_mut(), root, verbosity) };
-    unsafe {
-        tree.set_base(base);
-    }
-}
-

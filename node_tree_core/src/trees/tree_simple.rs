@@ -26,12 +26,13 @@
 //! Contains a simply implementation of a `NodeTree`.
 //!
 
+use core::panic;
 use std::any::Any;
 use std::ops::{ Deref, DerefMut };
 
 use crate::structs::logger::LoggerVerbosity;
-use crate::structs::node_tree_base::NodeTreeBase;
-use crate::traits::{ node::Node, node_tree::{ NodeTree, init_base } };
+use crate::structs::node_tree_base::{ NodeTreeBase, initialize_base };
+use crate::traits::{ instanceable::Instanceable, node_tree::NodeTree };
 
 
 /// A simple implementation of a `NodeTree` which will work just fine for most applications that do
@@ -44,12 +45,12 @@ pub struct TreeSimple {
 impl TreeSimple {
     
     /// Creates a new `TreeSimple` structure.
-    pub fn new<N: Node>(root: N, verbosity: LoggerVerbosity) -> Box<Self> {
+    pub fn new<I: Instanceable>(scene: I, verbosity: LoggerVerbosity) -> Box<Self> {
         let mut tree: Box<TreeSimple> = Box::new(TreeSimple {
             base: None
         });
         
-        init_base(&mut tree, root, verbosity);
+        initialize_base(&mut tree, scene, verbosity);
         tree
     }
 }
@@ -107,6 +108,10 @@ impl Deref for TreeSimple {
 
 impl DerefMut for TreeSimple {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        if self.base.is_none() {
+            panic!("None!");
+        }
+
         unsafe {
             self.base.as_mut().unwrap_unchecked()
         }

@@ -53,17 +53,19 @@ pub mod prelude {
     //! You'll probably want to import all from this module.
 
     pub use std::rc::Rc;
-    pub use node_tree_derive::Abstract;
+    pub use node_tree_derive::{ Abstract, Tree, scene };
     pub use crate::structs::{
         rid::RID,
         logger::{ LoggerVerbosity, Log },
         node_base::NodeBase,
         node_path::NodePath,
-        node_tree_base::{ NodeTreeBase, TreeStatus, TreeProcess, ProcessMode },
-        tree_pointer::{ Tp, TpDyn }
+        node_tree_base::{ NodeTreeBase, TreeStatus, TreeProcess, ProcessMode, initialize_base },
+        tree_pointer::{ Tp, TpDyn },
+        node_scene::NodeScene
     };
     pub use crate::traits::{
         node::{ Node, NodeAbstract },
-        node_tree::{ NodeTree, init_base }
+        node_tree::NodeTree,
+        instanceable::Instanceable
     };
 }
