@@ -80,7 +80,7 @@ fn test_node_integration() {
 }
 
 
-#[derive(Debug, Abstract)]
+#[derive(Debug, Clone, Abstract)]
 pub struct NodeA {
     base: NodeBase
 }

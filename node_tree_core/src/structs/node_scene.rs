@@ -45,6 +45,25 @@ impl NodeScene {
     }
 }
 
+impl Clone for NodeScene {
+    fn clone(&self) -> Self {
+        let cloned_node = unsafe {
+            let node_original: Box<dyn Node> = Box::from_raw(self.this);
+            let node_new:      Box<dyn Node> = node_original.clone_as_instance();
+
+            Box::into_raw(node_original); // Convert the box back so that its instance isn't deallocated when dropped.
+            Box::into_raw(node_new)
+        };
+
+        // Recursively clone children
+        let cloned_children: Vec<NodeScene> = self.children.iter().map(|child| child.clone()).collect();
+        NodeScene {
+            this:     cloned_node,
+            children: cloned_children,
+        }
+    }
+}
+
 impl Instanceable for NodeScene {
     fn iterate<F: FnMut(Option<*mut dyn Node>, *mut dyn Node)>(self, mut iterator: F) {
         iterator(None, self.this);

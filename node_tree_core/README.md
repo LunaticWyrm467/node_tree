@@ -17,7 +17,7 @@ To begin creating a program in Rust that utilizes a `NodeTree`, we must first cr
 use node_tree::prelude::*;
 
 
-#[derive(Debug, Abstract)]
+#[derive(Debug, Clone, Abstract)] // Nodes require `Debug` and `Clone`.
 pub struct NodeA {
     base: NodeBase   // Required for Nodes.
 }
@@ -106,6 +106,7 @@ fn main() -> () {
 }
 ```
 
+## Node Scenes
 You may also input a `NodeScene` when initializing a `NodeTree` or adding a child via `add_child`:
 ```rust
 use node_tree::prelude::*;
@@ -132,12 +133,16 @@ let scene: NodeScene = scene! {
         }
     }
 };
+
+// Scenes can also be cloned, stored, and reused.
+let _ = scene.clone();
 ```
 
+## Logging
 Logging is also supported. Here is an example setup with an output of a few warnings and a crash. Note that the crash header/footer are customizable, and that the output is actually colored in a real terminal.
 ```rust
 /// Root Node
-#[derive(Debug, Abstract)]
+#[derive(Debug, Clone, Abstract)]
 pub struct LoggerNode {
     base: NodeBase
 }
@@ -245,6 +250,20 @@ Time of Crash: 22/04/2024 17:25:46
 Exit Code: 1
 
 Goodbye World! (Program Exited)
+```
+
+## About Cloning
+All nodes are expected to implement the `Clone` trait since there are a few implementations that depend on it, such as `NodeScene`. However, it is possible to mark a field of a node so that it either has a special clone attribute or is uncloneable via provided types by this crate:
+```rust
+use node_tree::prelude::{ Doc, Eoc, Voc }; // All of these types implement Deref & DerefMut!
+
+#[derive(Debug, Clone, Abstract)]
+pub struct SpecializedNode {
+    base:   NodeBase,
+    resets: Doc<YourUniqueTypeHere>,  // Grabs the ::default() of your type when cloned!
+    errors: Eoc<YourUncloneableType>, // Panics when cloned! Good as an assertion.
+    voids:  Voc<YourUnownableType>    // Doesn't panic when cloned, but the cloned copy is unusable.
+}
 ```
 
 ## Features

@@ -89,6 +89,10 @@ pub fn r#abstract(input: TokenStream) -> TokenStream {
             fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
                 self
             }
+
+            fn clone_as_instance(&self) -> Box<dyn Node> {
+                Box::new(self.clone())
+            }
         }
 
         impl std::ops::Deref for #name {
@@ -201,14 +205,20 @@ pub fn tree(input: TokenStream) -> TokenStream {
 
 struct SceneNode {
     node_type: Ident,
-    params:    syn::ExprParen,
+    params:    Option<syn::ExprParen>,
     children:  Vec<SceneNode>,
 }
 
 impl Parse for SceneNode {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let node_type: Ident          = input.parse()?;
-        let params:    syn::ExprParen = input.parse()?;
+        let node_type: Ident = input.parse()?;
+        
+        // Have params be optional.
+        let params: Option<syn::ExprParen> = if input.peek(syn::token::Paren) {
+            Some(input.parse()?)
+        } else {
+            None
+        };
         
         let mut children: Vec<SceneNode> = Vec::new();
         if input.peek(syn::token::Brace) {
@@ -232,9 +242,12 @@ impl Parse for SceneNode {
 }
 
 fn generate_node(node: &SceneNode) -> TokenStream2 {
-    let node_type: &Ident            = &node.node_type;
-    let params:    &syn::ExprParen   = &node.params;
-    let children:  Vec<TokenStream2> = node.children.iter().map(generate_node).collect();
+    let node_type: &Ident       = &node.node_type;
+    let params:    TokenStream2 = match &node.params {
+        Some(p) => quote! { #p },
+        None    => quote! { () },
+    };
+    let children: Vec<TokenStream2> = node.children.iter().map(generate_node).collect();
     
     quote! {
         {
@@ -247,21 +260,9 @@ fn generate_node(node: &SceneNode) -> TokenStream2 {
     }
 }
 
-/// Allows for the easy implementation of a `NodeScene`, like so:
-/// ```rust,ignore
-/// use node_tree::prelude::*;
-///
-/// let scene: NodeScene = scene! {
-///     Node1(param1, param2) {
-///         Node2(param1),
-///         Node3()
-///     },
-///     Node4()
-/// };
-/// ```
 #[proc_macro]
 pub fn scene(input: TokenStream) -> TokenStream {
-    let root:     SceneNode    = parse_macro_input!(input as SceneNode);
+    let root:     SceneNode    = syn::parse_macro_input!(input as SceneNode);
     let expanded: TokenStream2 = generate_node(&root);
     TokenStream::from(expanded)
 }

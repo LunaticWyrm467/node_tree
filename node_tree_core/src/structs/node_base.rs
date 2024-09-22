@@ -49,9 +49,9 @@ pub enum NodeStatus {
 /// Holds all of the node's internal information such as its name, children, parent, owner, and
 /// owning `NodeTree`.
 /// Also allows for the modification of the node's internal state.
+///
 /// # Note
-/// This does not derive from the `Debug` macro, but rather implements `Debug` manually to avoid
-/// issues with recursion whilst debug printing.
+/// Cloning this will result in a new `NodeBase` with the same name.
 pub struct NodeBase {
     name:     String,
     rid:      RID,
@@ -201,6 +201,7 @@ impl NodeBase {
     /// Removes a child but it does not destroy it, disconnecting from its parent.
     /// Both the child and its children will be disconnected from the tree and their owners.
     /// This will return whether the child node was successfully removed or not.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn remove_child(&mut self, name: &str) -> bool {
@@ -243,6 +244,7 @@ impl NodeBase {
 
     /// Returns a `Tp<T>` pointer to a child at the given index.
     /// If there is no child at the given index, or if the wrong type is given, then `None` will be returned.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn get_child<T: Node>(&self, i: usize) -> Option<Tp<T>> {
@@ -261,6 +263,7 @@ impl NodeBase {
     
     /// Returns a `TpDyn` pointer to a child at the given index.
     /// If there is no child at the given index then `None` will be returned.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn get_child_dyn(&self, i: usize) -> Option<TpDyn> {
@@ -278,6 +281,7 @@ impl NodeBase {
     }
 
     /// Gets a vector of `DynTp` to describe this node's children.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn children(&self) -> Vec<TpDyn> {
@@ -291,6 +295,7 @@ impl NodeBase {
     /// Gets a `Tp<T>` or a Tree Pointer to a given `Node` via a `NodePath`.
     /// Returns `None` if the address is invalid or if the referenced `Node` is not of the type
     /// `T`.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn get_node<T: Node>(&self, path: NodePath) -> Option<Tp<T>> {
@@ -310,6 +315,7 @@ impl NodeBase {
 
     /// Gets a `TpDyn` or a Dynamic Tree Pointer to a given `Node` via a `NodePath`.
     /// Returns `None` if the address is invalid.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn get_node_dyn(&self, path: NodePath) -> Option<TpDyn> {
@@ -331,6 +337,7 @@ impl NodeBase {
     /// String (the latter two may be used to denote Singletons).
     /// Returns `None` if the address is invalid or if the referenced `Node` is not of the type
     /// `T`.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn get_node_from_tree<T: Node, G: NodeGetter>(&self, path: G) -> Option<Tp<T>> {
@@ -351,6 +358,7 @@ impl NodeBase {
     /// Gets a `TpDyn` or a Dynamic Tree Pointer to a given `Node` via either a `NodePath`, a `&str`, or a
     /// String (the latter two may be used to denote Singletons).
     /// Returns `None` if the address is invalid.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn get_node_dyn_from_tree<G: NodeGetter>(&self, path: G) -> Option<TpDyn> {
@@ -369,6 +377,7 @@ impl NodeBase {
     }
 
     /// Gets a node's `RID` given a `NodePath` that is respective to this node as the root.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn get_node_raw(&self, mut path: NodePath) -> Option<RID> {
@@ -393,8 +402,10 @@ impl NodeBase {
     /// Produces a normal top-down order iteration of all of the nodes connected to this node.
     /// This is used to handle a lot of the scene tree behaviour.
     /// If 'contains_self' is true, then the list will contain this node as well.
+    ///
     /// # Note
     /// Nodes that are at the beginning of the children vector will be prioritized.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn top_down(&self, contains_self: bool) -> Vec<RID> {
@@ -404,6 +415,7 @@ impl NodeBase {
     }
 
     /// The tail end recursive function for the `top_down` method.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     fn top_down_tail(&self, iter: &mut Vec<RID>, layer: Vec<RID>) {
@@ -427,6 +439,7 @@ impl NodeBase {
     /// Produces a reverse bottom-up order iteration of all of the nodes connected to this node.
     /// This is typically used to initialize nodes or scenes of nodes.
     /// If 'contains_self' is true, then the list will contain this node as well.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn bottom_up(&self, contains_self: bool) -> Vec<RID> {
@@ -449,6 +462,7 @@ impl NodeBase {
     }
 
     /// This gathers the deepest nodes in the tree.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     fn gather_deepest(&self) -> Vec<RID> {
@@ -466,6 +480,7 @@ impl NodeBase {
     /// The tail end recursive function for the `bottom_up` method.
     /// Due to how this functions, this function call doesn't actually call itself on different
     /// layers of the node tree, but it rather calls itself.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     fn bottom_up_tail(&self, iter: &mut Vec<RID>, layer: Vec<RID>) -> () {
@@ -501,6 +516,7 @@ impl NodeBase {
     }
 
     /// Gets this Node's absolute `NodePath` to the root of the tree.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn get_absolute_path(&self) -> NodePath {
@@ -510,6 +526,7 @@ impl NodeBase {
     }
 
     /// The recursive tail for the `get_absolute_path` function.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     fn get_absolute_path_tail(&self, path: &mut String) {
@@ -528,6 +545,7 @@ impl NodeBase {
     /// Attempts to post a log to the logger.
     /// If this node has a unique identifier accessible by name, then that will be used as the
     /// node's identifier in the log.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn post(&mut self, log: Log) -> () {
@@ -551,6 +569,7 @@ impl NodeBase {
     /// Destroys the Node, removing it from any connected parent or children.
     /// If this is the root node, then the destruction of this node will result in the program
     /// itself terminating.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn free(&mut self) -> () {
@@ -816,5 +835,11 @@ impl std::fmt::Debug for NodeBase {
         f.write_str("}")?;
 
         Ok(())
+    }
+}
+
+impl Clone for NodeBase {
+    fn clone(&self) -> Self {
+        Self::new(self.name.clone())
     }
 }

@@ -27,7 +27,7 @@
 //! use node_tree::prelude::*;
 //!
 //!
-//! #[derive(Debug, Abstract)]
+//! #[derive(Debug, Clone, Abstract)] // Nodes require `Debug` and `Clone`.
 //! pub struct NodeA {
 //!     base: NodeBase   // Required for Nodes.
 //! }
@@ -55,13 +55,14 @@ pub mod prelude {
     pub use std::rc::Rc;
     pub use node_tree_derive::{ Abstract, Tree, scene };
     pub use crate::structs::{
-        rid::RID,
+        cloneable_types::{ Doc, Eoc, Voc },
         logger::{ LoggerVerbosity, Log },
         node_base::NodeBase,
         node_path::NodePath,
         node_tree_base::{ NodeTreeBase, TreeStatus, TreeProcess, ProcessMode, initialize_base },
         tree_pointer::{ Tp, TpDyn },
-        node_scene::NodeScene
+        node_scene::NodeScene,
+        rid::RID,
     };
     pub use crate::traits::{
         node::{ Node, NodeAbstract },

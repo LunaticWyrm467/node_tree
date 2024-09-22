@@ -34,7 +34,7 @@ pub fn test_logger_tree() -> () {
     }
 }
 
-#[derive(Debug, Abstract)]
+#[derive(Debug, Clone, Abstract)]
 pub struct LoggerNode {
     base: NodeBase
 }

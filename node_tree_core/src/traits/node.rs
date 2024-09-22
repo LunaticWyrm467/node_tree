@@ -21,7 +21,12 @@
 //!
 //! Stores important traits required to create a fully-fledged `Node` type, such as `NodeAbstract`and `Node`.
 //!
+//! Most of the time, you'lll wish to make use of the `Abstract` derive macro, which implements all
+//! but the `Node` trait for you! You'll require the `Debug` and `Clone` trait to be derived as
+//! well, however.
+//!
 
+use std::fmt;
 use std::any::Any;
 use std::ops::{ Deref, DerefMut };
 
@@ -31,7 +36,7 @@ use super::instanceable::Instanceable;
 
 /// This implements of of the node's abstract behaviours.
 /// This, along with `Node` must be implemented in order to create a new node.
-pub trait NodeAbstract: Deref<Target = NodeBase> + DerefMut + Any + std::fmt::Debug {
+pub trait NodeAbstract: Deref<Target = NodeBase> + DerefMut + Any + fmt::Debug {
     
     /// Returns a reference to the `NodeBase` object.
     fn base(&self) -> &NodeBase;
@@ -59,6 +64,9 @@ pub trait NodeAbstract: Deref<Target = NodeBase> + DerefMut + Any + std::fmt::De
 
     /// Converts this into a mutable Any type.
     fn as_any_mut(&mut self) -> &mut dyn Any;
+
+    /// Clones this, returning a boxed clone value.
+    fn clone_as_instance(&self) -> Box<dyn Node>;
 }
 
 

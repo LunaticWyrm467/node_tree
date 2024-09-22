@@ -449,14 +449,30 @@ impl NodeTreeBase {
     /// # Note
     /// This does not check if the Node was a singleton and thus cannot be unregistered.
     pub unsafe fn unregister_node(&mut self, rid: RID) -> Option<Box<dyn Node>> {
+        
+        // Remove this node from the singletons map if it is on there.
+        let mut singleton_name: Option<String> = None;
+        for (name, singleton_rid) in &self.singletons {
+            if *singleton_rid == rid {
+                singleton_name = Some(name.to_string());
+            }
+        }
+
+        if let Some(singleton_name) = singleton_name {
+            self.singletons.remove(&singleton_name);
+        }
+
+        // TODO: Register a singleton name directly on the node as well to save performance.
+
+        // Unregister this node from the tree.
         let node: Option<*mut dyn Node> = self.nodes.take(rid);
         self.identity.remove(&rid);
         node.map(|ptr| Box::from_raw(ptr))
     }
     
     /// Converts a Node into a singleton which means that a node is allowed access by name.
+    ///
     /// # Note:
-    /// Singleton nodes cannot be destroyed or detached from the scene tree.
     /// Returns None if the RID is invalid, or a boolean value that if true means that the name was
     /// set properly.
     pub fn register_as_singleton(&mut self, rid: RID, name: String) -> Option<bool> {
