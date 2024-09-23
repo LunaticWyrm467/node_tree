@@ -39,6 +39,11 @@ impl <T: Default> Doc<T> {
     pub fn new(item: T) -> Self {
         Doc(item)
     }
+
+    /// Consumes the `Doc<T>`, returning `T`.
+    pub fn take(self) -> T {
+        self.0
+    }
 }
 
 impl <T: Default> Clone for Doc<T> {
@@ -70,6 +75,11 @@ impl <T> Eoc<T> {
     /// Creates a new `Eoc<T>`.
     pub fn new(item: T) -> Self {
         Eoc(item)
+    }
+
+    /// Consumes the `Eoc<T>`, returning `T`.
+    pub fn take(self) -> T {
+        self.0
     }
 }
 
@@ -121,6 +131,17 @@ impl <T> Voc<T> {
         match self {
             Self::Valid(_) => false,
             Self::Void     => true
+        }
+    }
+
+    /// Consumes the `Voc<T>`, returning `T`.
+    ///
+    /// # Panics
+    /// Panics if `T` is unreacheable!
+    pub fn take(self) -> T {
+        match self {
+            Self::Valid(t) => t,
+            Self::Void     => panic!("Attempted to utilize a voided Voc<T> (Void on Clone)!")
         }
     }
 }
