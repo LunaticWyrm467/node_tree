@@ -86,36 +86,32 @@ impl NodeBase {
     }
 
     /// Sets the name of the node.
-    /// This will fail if the name is not unique within the context of the parent's children
-    /// vector.
-    /// Returns false if the operation fails.
-    pub fn set_name(&mut self, name: &str) -> bool {
+    /// If the name is not unique among the node's siblings, then it will be made into a unique name.
+    pub fn set_name(&mut self, name: &str) {
         if let (Some(parent), Some(tree)) = (self.parent, self.tree()) {
-            let mut is_unique: bool         = true;
             let     parent:    &dyn Node    = unsafe { tree.get_node(parent).unwrap_unchecked() };
             let     siblings:  &[String]    = &parent.children().iter().map(|a| a.name().to_string()).collect::<Vec<_>>();
 
-            for sibling_name in siblings {
-                let self_name: &str = self.name();
-                if sibling_name == self_name { // Ignore THIS node.
-                    continue;
-                } else if sibling_name == name {
-                    is_unique = false;
-                    break;
-                }
+            unsafe {
+                self.set_name_unchecked(&ensure_unique_name(name, siblings));
             }
-
-            if is_unique {
-                unsafe {
-                    self.set_name_unchecked(name);
-                }
-            }
-            is_unique
         } else {
             unsafe {
                 self.set_name_unchecked(name);
             }
-            true
+        }
+    }
+
+    /// Registers this node as a singleton.
+    /// Returns whether the name was set successfully.
+    ///
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn register_as_singleton(&mut self, name: String) -> bool {
+        let rid: RID = self.rid;
+        match self.tree_mut() {
+            None       => panic!("Cannot register a node that is not apart of the Nodetree as a singleton!"),
+            Some(tree) => tree.register_as_singleton(rid, name).unwrap()
         }
     }
 
