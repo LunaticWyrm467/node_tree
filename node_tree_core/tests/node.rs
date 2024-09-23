@@ -1,7 +1,6 @@
 use node_tree::trees::tree_simple::TreeSimple;
 use node_tree::prelude::*;
 
-
 #[test]
 fn test_node_integration() {
     
@@ -12,56 +11,56 @@ fn test_node_integration() {
 
     // Initialize the NodeScene.
     let scene: NodeScene = scene! {
-        NodeA("Root") {
-            NodeA("1_Node") {
-                NodeA("2_Node") {
-                    NodeA("3_Node"),
-                    NodeA("3_Node"),
-                    NodeA("3_Node")
+        NodeA("Root", 1) {
+            NodeA("1_Node", 2) {
+                NodeA("2_Node", 3) {
+                    NodeA("3_Node", 4),
+                    NodeA("3_Node", 5),
+                    NodeA("3_Node", 6)
                 },
-                NodeA("2_Node") {
-                    NodeA("3_Node"),
-                    NodeA("3_Node"),
-                    NodeA("3_Node")
+                NodeA("2_Node", 7) {
+                    NodeA("3_Node", 8),
+                    NodeA("3_Node", 9),
+                    NodeA("3_Node", 10)
                 },
-                NodeA("2_Node") {
-                    NodeA("3_Node"),
-                    NodeA("3_Node"),
-                    NodeA("3_Node")
+                NodeA("2_Node", 11) {
+                    NodeA("3_Node", 12),
+                    NodeA("3_Node", 13),
+                    NodeA("3_Node", 14)
                 }
             },
-            NodeA("1_Node") {
-                NodeA("2_Node") {
-                    NodeA("3_Node"),
-                    NodeA("3_Node"),
-                    NodeA("3_Node")
+            NodeA("1_Node", 15) {
+                NodeA("2_Node", 16) {
+                    NodeA("3_Node", 17),
+                    NodeA("3_Node", 18),
+                    NodeA("3_Node", 19)
                 },
-                NodeA("2_Node") {
-                    NodeA("3_Node"),
-                    NodeA("3_Node"),
-                    NodeA("3_Node")
+                NodeA("2_Node", 20) {
+                    NodeA("3_Node", 21),
+                    NodeA("3_Node", 22),
+                    NodeA("3_Node", 23)
                 },
-                NodeA("2_Node") {
-                    NodeA("3_Node"),
-                    NodeA("3_Node"),
-                    NodeA("3_Node")
+                NodeA("2_Node", 24) {
+                    NodeA("3_Node", 25),
+                    NodeA("3_Node", 26),
+                    NodeA("3_Node", 27)
                 }
             },
-            NodeA("1_Node") {
-                NodeA("2_Node") {
-                    NodeA("3_Node"),
-                    NodeA("3_Node"),
-                    NodeA("3_Node")
+            NodeA("1_Node", 28) {
+                NodeA("2_Node", 29) {
+                    NodeA("3_Node", 30),
+                    NodeA("3_Node", 31),
+                    NodeA("3_Node", 32)
                 },
-                NodeA("2_Node") {
-                    NodeA("3_Node"),
-                    NodeA("3_Node"),
-                    NodeA("3_Node")
+                NodeA("2_Node", 33) {
+                    NodeA("3_Node", 34),
+                    NodeA("3_Node", 35),
+                    NodeA("3_Node", 36)
                 },
-                NodeA("2_Node") {
-                    NodeA("3_Node"),
-                    NodeA("3_Node"),
-                    NodeA("3_Node")
+                NodeA("2_Node", 37) {
+                    NodeA("3_Node", 38),
+                    NodeA("3_Node", 39),
+                    NodeA("3_Node", 40)
                 }
             }
         }
@@ -86,7 +85,7 @@ pub struct NodeA {
 }
 
 impl NodeA {
-    fn new(name: &str) -> Self {
+    fn new(name: &str, _example_arg: u8) -> Self {
         NodeA { base: NodeBase::new(name.to_string()) }
     }
 }

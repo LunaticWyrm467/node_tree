@@ -29,6 +29,7 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
+use syn::{punctuated::Punctuated, token::Comma, Expr};
 use quote::quote;
 use syn::{ parse_macro_input, DeriveInput, Ident, parse::{ Parse, ParseStream }, Token };
 use proc_macro2::TokenStream as TokenStream2;
@@ -205,7 +206,7 @@ pub fn tree(input: TokenStream) -> TokenStream {
 
 struct SceneNode {
     node_type: Ident,
-    params:    Option<syn::ExprParen>,
+    params:    Option<Punctuated<Expr, Comma>>,
     children:  Vec<SceneNode>,
 }
 
@@ -213,9 +214,11 @@ impl Parse for SceneNode {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let node_type: Ident = input.parse()?;
         
-        // Have params be optional.
-        let params: Option<syn::ExprParen> = if input.peek(syn::token::Paren) {
-            Some(input.parse()?)
+        // Parse optional parameters
+        let params: Option<Punctuated<Expr, Comma>> = if input.peek(syn::token::Paren) {
+            let content;
+            syn::parenthesized!(content in input);
+            Some(Punctuated::parse_terminated(&content)?)
         } else {
             None
         };
@@ -244,7 +247,7 @@ impl Parse for SceneNode {
 fn generate_node(node: &SceneNode) -> TokenStream2 {
     let node_type: &Ident       = &node.node_type;
     let params:    TokenStream2 = match &node.params {
-        Some(p) => quote! { #p },
+        Some(p) => quote! { (#p) },
         None    => quote! { () },
     };
     let children: Vec<TokenStream2> = node.children.iter().map(generate_node).collect();
@@ -260,6 +263,23 @@ fn generate_node(node: &SceneNode) -> TokenStream2 {
     }
 }
 
+/// A simple short-hand way of initializing `NodeScene`s quickly and elegantly.
+/// Here is an example of a `NodeScene` initialized in this manner:
+/// ```rust, ignore
+/// use node_tree::prelude::*;
+///
+/// let scene: NodeScene = scene! {
+///     RootNode {
+///         NodeWithNoArgs,
+///         NodeWithOneArg(1),
+///         NodeWithTwoArgs(1, "two"),
+///         NodeWithChildren {
+///             Foo,
+///             Bar
+///         }
+///     }
+/// };
+/// ```
 #[proc_macro]
 pub fn scene(input: TokenStream) -> TokenStream {
     let root:     SceneNode    = syn::parse_macro_input!(input as SceneNode);
