@@ -76,16 +76,16 @@ pub trait Node: NodeAbstract {
     
     /// This function can be overridden to facilitate this node's starting behaviour.
     /// This only runs once after the scene that the node is a part of is fully initialized.
-    fn ready(&mut self) -> () {}
+    fn ready(&mut self) {}
 
     /// This function can be overridden to facilitate behaviour that must update on a timely
     /// manner.
     /// This runs once per tick, and returns a delta value capturing the time between frames.
-    fn process(&mut self, _delta: f32) -> () {}
+    fn process(&mut self, _delta: f32) {}
 
     /// This function can be overrriden to facilitate this node's terminal behaviour.
     /// It is run immeditately after this node is queued for destruction.
-    fn terminal(&mut self) -> () {}
+    fn terminal(&mut self) {}
 
     /// This returns the node's process mode, and entirely effects how the process() function
     /// behaves.

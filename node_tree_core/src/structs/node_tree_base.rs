@@ -136,7 +136,7 @@ impl NodeIdentity {
     pub fn does_not_match(&self, name: &str) -> bool {
         match self {
             Self::UniqueName(this_name) => this_name != name,
-            Self::NodePath              => false
+            Self::NodePath              => true
         }
     }
 }
@@ -483,11 +483,7 @@ impl NodeTreeBase {
         if self.nodes.retrieve(rid).is_none() {
             return None;
         }
-
-        if self.identity.contains_key(&rid) {
-            return Some(false);
-        }
-
+        
         if !self.identity.values().into_iter().all(|x| x.does_not_match(&name)) {
             return Some(false);
         }
