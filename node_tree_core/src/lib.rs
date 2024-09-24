@@ -52,7 +52,6 @@ pub mod prelude {
     //! Contains everything you'll need to create and handle Nodes and NodeTrees.
     //! You'll probably want to import all from this module.
 
-    pub use std::rc::Rc;
     pub use node_tree_derive::{ Abstract, Tree, scene };
     pub use crate::structs::{
         cloneable_types::{ Doc, Eoc, Voc },

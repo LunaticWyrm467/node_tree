@@ -242,7 +242,11 @@ impl NodeTreeBase {
         for node in self.get_all_valid_nodes_mut(&self.root().bottom_up(true)) {
             node.ready();
         }
-        self.status = TreeStatus::Process(TreeProcess::Running);
+
+        self.status = match self.status {
+            TreeStatus::Idle => TreeStatus::Process(TreeProcess::Running),
+            other            => other     
+        };
     }
 
     /// Runs the process behaviour of the Node Tree for a single frame -
@@ -476,8 +480,12 @@ impl NodeTreeBase {
     /// Returns None if the RID is invalid, or a boolean value that if true means that the name was
     /// set properly.
     pub fn register_as_singleton(&mut self, rid: RID, name: String) -> Option<bool> {
-        if !self.identity.contains_key(&rid) {
+        if self.nodes.retrieve(rid).is_none() {
             return None;
+        }
+
+        if self.identity.contains_key(&rid) {
+            return Some(false);
         }
 
         if !self.identity.values().into_iter().all(|x| x.does_not_match(&name)) {

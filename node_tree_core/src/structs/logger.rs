@@ -193,9 +193,9 @@ impl Logger {
     pub unsafe fn post(&mut self, calling: RID, log: Log, node_tree: *mut NodeTreeBase) -> bool {
         match &self.verbosity_lv {
             LoggerVerbosity::All        => {},
-            LoggerVerbosity::NoDebug    => if log.is_debug() { return false; },
+            LoggerVerbosity::NoDebug    => if log.is_debug()        { return false; },
             LoggerVerbosity::OnlyIssues => if !log.is_problematic() { return false; },
-            LoggerVerbosity::OnlyPanics => if !log.is_panic() { return false; }
+            LoggerVerbosity::OnlyPanics => if !log.is_panic()       { return false; }
         }
         
         let node_tree: &NodeTreeBase = &*node_tree;
@@ -239,6 +239,12 @@ Exit Code: {}
     /// Returns the time of the posted message
     pub fn post_manual(&mut self, system: SystemCall, log: Log) -> String {
         let time: String = DateTime::<Utc>::from(SystemTime::now()).format("%d/%m/%Y %T").to_string();
+        match &self.verbosity_lv {
+            LoggerVerbosity::All        => {},
+            LoggerVerbosity::NoDebug    => if log.is_debug()        { return time; },
+            LoggerVerbosity::OnlyIssues => if !log.is_problematic() { return time; },
+            LoggerVerbosity::OnlyPanics => if !log.is_panic()       { return time; }
+        }
         
         println!(
             "{}<{} UTC> | {} | {} | {}\u{001b}[0m",
