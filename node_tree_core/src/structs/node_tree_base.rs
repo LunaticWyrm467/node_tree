@@ -204,7 +204,7 @@ impl NodeTreeBase {
         scene.iterate(|parent, node| {
             if let Some(parent) = parent {
                 let parent: &mut dyn Node = unsafe { &mut *parent };
-                parent.add_child_from_ptr(node, false);
+                parent.add_child_from_ptr(node, false, true);
             } else {
                 self.identity.insert(Self::ROOT_RID, NodeIdentity::NodePath);
 

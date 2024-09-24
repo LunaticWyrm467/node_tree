@@ -128,11 +128,11 @@ impl NodeBase {
             if let Some(parent) = parent {
                 unsafe {
                     let parent: &mut dyn Node = &mut *parent;
-                    parent.add_child_from_ptr(node, false);
+                    parent.add_child_from_ptr(node, false, false);
                 }
             } else {
                 unsafe {
-                    self.add_child_from_ptr(node, true);
+                    self.add_child_from_ptr(node, true, false);
                 }
             }
         });
@@ -140,6 +140,11 @@ impl NodeBase {
 
     /// Adds a child to the node via a passed in pointer, automatically renaming it if its
     /// name is not unique in the node's children vector.
+    ///
+    /// # Arguments
+    /// Aside from the raw pointer to the child itself, this function takes in two booleans for
+    /// whether if this node marks the owner of a new scene branch, and if this added node does not
+    /// call its ready() function respectively.
     ///
     /// # Note
     /// `_ready()` will automatically be propogated through the added child node.
@@ -149,7 +154,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub unsafe fn add_child_from_ptr(&mut self, child_ptr: *mut dyn Node, owner_is_self: bool) {
+    pub unsafe fn add_child_from_ptr(&mut self, child_ptr: *mut dyn Node, owner_is_self: bool, ignore_ready: bool) {
         if self.tree.is_none() {
             panic!("Cannot add a child to a node that is not in a `NodeTree`!");
         }
@@ -182,11 +187,13 @@ impl NodeBase {
         };
         self.children.push(child_rid);
         
-        // Call the `ready()` function for the child.
-        unsafe {
-            let child: &mut dyn Node = self.tree_mut().unwrap_unchecked().get_node_mut(child_rid).unwrap_unchecked();
-            child.ready();
-            
+        // Call the `ready()` function for the child as long as the call to ready() is not ignored
+        // or circumvented..
+        if !ignore_ready {
+            unsafe {
+                let child: &mut dyn Node = self.tree_mut().unwrap_unchecked().get_node_mut(child_rid).unwrap_unchecked();
+                child.ready();
+            }
         }
         
         // Print the debug information on the child to the console.
