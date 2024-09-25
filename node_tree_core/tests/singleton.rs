@@ -29,6 +29,5 @@ fn test_singleton_registration() {
     let     singleton: Singleton       = Singleton::new();
     let mut tree:      Box<TreeSimple> = TreeSimple::new(singleton, LoggerVerbosity::NoDebug);
 
-    tree.start();
-    while tree.process().is_active() {}
+    while !tree.process().has_terminated() {}
 }

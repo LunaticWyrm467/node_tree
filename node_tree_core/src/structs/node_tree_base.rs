@@ -40,12 +40,7 @@
 //!     let tree: Box<TreeSimple> = TreeSimple::new(root, LoggerVerbosity::NoDebug);
 //! 
 //!     // Begin operations on the tree.
-//!     tree.start();
-//!     loop {
-//!        if tree.process().has_terminated() {
-//!            break;
-//!        }
-//!    }
+//!     while tree.process().is_active() {}
 //! }
 //! ```
 
@@ -80,10 +75,6 @@ pub enum ProcessMode {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TreeStatus {
 
-    /// The tree of processes has not started yet. `start()` must be ran before the `process()`
-    /// method!
-    Idle,
-
     /// The tree is currently processing standard frame-based behaviours.
     Process(TreeProcess),
 
@@ -101,11 +92,11 @@ pub enum TreeStatus {
 impl TreeStatus {
     
     /// Determines if the tree is still active.
-    /// E.g. not `Idle` or `Terminated`.
+    /// E.g. not `Terminated`.
     pub fn is_active(&self) -> bool {
         match self {
-            Self::Idle | Self::Terminated => false,
-            _                             => true
+            Self::Terminated => false,
+            _                => true
         }
     }
 
@@ -177,7 +168,7 @@ impl NodeTreeBase {
             nodes,
             identity:   HashMap::new(),
             singletons: HashMap::new(),
-            status:     TreeStatus::Idle,
+            status:     TreeStatus::Process(TreeProcess::Running),
             last_frame: Instant::now()
         };
         
@@ -199,14 +190,18 @@ impl NodeTreeBase {
     /// It is undefined behaviour if the outer struct is not allocated on the heap.
     /// ...
     unsafe fn initialize<I: Instanceable>(&mut self, outer: *mut dyn NodeTree, scene: I) {
+        let mut initialization_history: Vec<RID> = Vec::new();
 
         // Go through each node that needs to be instanced in the scene.
         scene.iterate(|parent, node| {
             if let Some(parent) = parent {
                 let parent: &mut dyn Node = unsafe { &mut *parent };
-                parent.add_child_from_ptr(node, false, true);
+                let rid:    RID           = parent.add_child_from_ptr(node, false, true);
+
+                initialization_history.push(rid);
             } else {
                 self.identity.insert(Self::ROOT_RID, NodeIdentity::NodePath);
+                initialization_history.push(Self::ROOT_RID);
 
                 // Since this is the root node, it's 'owner' will be itself.
                 // It will also have no parent.
@@ -226,36 +221,17 @@ impl NodeTreeBase {
                 self.nodes.push(node);
             }
         });
-    }
 
-    /// Runs the starting process behaviour -
-    /// (any code under all initialized node's `ready()` functions).
-    ///
-    /// # Panics
-    /// This will panic if the tree status is anything but `Idle` (you cannot start a tree twice).
-    pub fn start(&mut self) {
-        match self.status {
-            TreeStatus::Idle => (),
-            _                => panic!("Attempted to start() a NodeTree with a status of {:?}!", self.status)
-        }
-
-        for node in self.get_all_valid_nodes_mut(&self.root().bottom_up(true)) {
+        // Go through the initialization history backwards and run each node's `ready()` function.
+        for rid in initialization_history.into_iter().rev() {
+            let node: &mut dyn Node = unsafe { self.get_node_mut(rid).unwrap_unchecked() };
             node.ready();
         }
-
-        self.status = match self.status {
-            TreeStatus::Idle => TreeStatus::Process(TreeProcess::Running),
-            other            => other     
-        };
     }
 
     /// Runs the process behaviour of the Node Tree for a single frame -
     /// (any code under all initialized node's `process()` functions).
     /// This returns the `TreeStatus`
-    /// 
-    /// # Panics
-    /// This function will panic if the start() function hasn't ran before this function was
-    /// called.
     pub fn process(&mut self) -> TreeStatus {
 
         // Return early if the tree is no longer active.
@@ -397,7 +373,6 @@ impl NodeTreeBase {
         // Depending on the tree's status and the node's process mode, abide by the processing
         // rules.
         match status {
-            TreeStatus::Idle => panic!("The function `start()` was not called before the program was ran!"),
             TreeStatus::Process(process) | TreeStatus::QueuedTermination(process) => {
                 match process {
                     TreeProcess::Running => {

@@ -23,15 +23,17 @@
 
 //!
 //! Provides the `Tp<T>` smart pointer which allows access to Nodes in the `NodeTree`.
-//! Also provides the `TpDyn<T>` alternative to allow easy access to dynamic values.
+//! Also provides the `TpDyn` alternative to allow easy access to dynamic values.
 //! 
 
 use std::ops::{ Deref, DerefMut };
 use std::any::Any;
 use std::marker::PhantomData;
 
-use super::rid::RID;
 use crate::traits::{ node::Node, node_tree::NodeTree };
+use super::rid::RID;
+use super::logger::Log;
+use super::tree_option::TreeOption;
 
 
 /*
@@ -52,6 +54,7 @@ use crate::traits::{ node::Node, node_tree::NodeTree };
 /// versions of `get()` and `get_mut()`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Tp<'a, T: Node> {
+    owner:  RID,
     node:   RID,
     tree:   *mut dyn NodeTree,
     p_life: PhantomData<&'a ()>,
@@ -69,8 +72,9 @@ impl <'a, T: Node> Tp<'a, T> {
     /// function to have it be constructed in a safe manner for you!
     ///
     /// # Failure
-    /// Will not return a valid `Tp<T>` pointer if the types do not match!
-    pub unsafe fn new(tree: *mut dyn NodeTree, node: RID) -> Option<Self> {
+    /// Will not return a valid `Tp<T>` pointer if the types do not match, or if the referenced
+    /// `Node` is invalid!
+    pub unsafe fn new(tree: *mut dyn NodeTree, owner: RID, node: RID) -> TreeOption<'a, Self> {
         
         // First check if the types match using dynamic dispatch!
         match (&*tree).get_node(node) {
@@ -78,24 +82,41 @@ impl <'a, T: Node> Tp<'a, T> {
                 let any: &dyn Any = node.as_any();
                 match any.downcast_ref::<T>() {
                     Some(_) => (),
-                    None    => return None
+                    None    => return TreeOption::new(tree, owner, None)
                 }
             },
-            None => ()
+            None => return TreeOption::new(tree, owner, None)
         }
 
-        Some(Tp {
+        TreeOption::new(tree, owner, Some(Tp {
+            owner,
             node,
             tree,
             p_life: PhantomData,
             p_type: PhantomData
-        })
+        }))
+    }
+    
+    /// Converts this to a generic `TpDyn`.
+    ///
+    /// # Panics
+    /// Panics if the node is invalid!
+    pub fn to_dyn(self) -> TpDyn<'a> {
+        unsafe {
+            match TpDyn::new(self.tree, self.owner, self.node).to_option() {
+                Some(success) => success,
+                None          => self.fail("Cannot cast a null Tp<T> to a dynamic TpDyn!")
+            }
+        }
     }
 
     /// Converts this to a generic `TpDyn`.
-    pub fn to_dyn(self) -> TpDyn<'a> {
+    ///
+    /// # Failure
+    /// Will not return a valid `TpDyn` pointer if the internally referenced `Node` has been invalidated!
+    pub fn try_to_dyn(self) -> TreeOption<'a, TpDyn<'a>> {
         unsafe {
-            TpDyn::new(self.tree, self.node)
+            TpDyn::new(self.tree, self.owner, self.node)
         }
     }
 
@@ -128,6 +149,7 @@ impl <'a, T: Node> Tp<'a, T> {
     }
     
     /// Attempts to get a reference to the underlying `Node`.
+    ///
     /// # Panics
     /// Panics if the node is invalid!
     pub fn get(&self) -> &T {
@@ -137,29 +159,30 @@ impl <'a, T: Node> Tp<'a, T> {
                 let any: &dyn Any = node.as_any();
                 match any.downcast_ref::<T>() {
                     Some(node) => node,
-                    None       => panic!("Invalid node!")
+                    None       => self.fail("Invalid node!")
                 }
             },
-            None => panic!("Invalid Node!")
+            None => self.fail("Invalid Node!")
         }
     }
     
     /// Attempts to get a reference to the underlying `Node`. Returns `None` if the `Node` is invalid.
-    pub fn try_get(&self) -> Option<&T> {
+    pub fn try_get(&self) -> TreeOption<&T> {
         let node: Option<&dyn Node> = unsafe { &*self.tree }.get_node_raw(self.node).map(|n| unsafe { &*n });
         match node {
             Some(node) => {
                 let any: &dyn Any = node.as_any();
                 match any.downcast_ref::<T>() {
-                    Some(node) => Some(node),
-                    None       => None
+                    Some(node) => unsafe { TreeOption::new(self.tree, self.owner, Some(node)) },
+                    None       => unsafe { TreeOption::new(self.tree, self.owner, None)       }
                 }
             },
-            None => None
+            None => unsafe { TreeOption::new(self.tree, self.owner, None) }
         }
     }
     
     /// Attempts to get a mutable reference to the underlying `Node`.
+    ///
     /// # Panics
     /// Panics if the node is invalid!
     pub fn get_mut(&mut self) -> &mut T {
@@ -169,26 +192,33 @@ impl <'a, T: Node> Tp<'a, T> {
                 let any: &mut dyn Any = node.as_any_mut();
                 match any.downcast_mut::<T>() {
                     Some(node) => node,
-                    None       => panic!("Invalid node!")
+                    None       => self.fail("Invalid node!")
                 }
             },
-            None => panic!("Invalid Node!")
+            None => self.fail("Invalid Node!")
         }
     }
     
     /// Attempts to get a mutable reference to the underlying `Node`. Returns `None` if the `Node` is invalid.
-    pub fn try_get_mut(&mut self) -> Option<&mut T> {
+    pub fn try_get_mut(&mut self) -> TreeOption<&mut T> {
         let node: Option<&mut dyn Node> = unsafe { &mut *self.tree }.get_node_mut_raw(self.node).map(|n| unsafe { &mut *n });
         match node {
             Some(node) => {
                 let any: &mut dyn Any = node.as_any_mut();
                 match any.downcast_mut::<T>() {
-                    Some(node) => Some(node),
-                    None       => None
+                    Some(node) => unsafe { TreeOption::new(self.tree, self.owner, Some(node)) },
+                    None       => unsafe { TreeOption::new(self.tree, self.owner, None)       }
                 }
             },
-            None => None
+            None => unsafe { TreeOption::new(self.tree, self.owner, None) }
         }
+    }
+
+    /// Marks a failed operation with a panic on the log, and panics the main thread.
+    fn fail(&self, msg: &str) -> ! {
+        unsafe { (&mut *self.tree).get_node(self.owner).unwrap_unchecked() }.post(Log::Panic(msg));
+        println!("\n[RUST TRACE]");
+        panic!();
     }
 }
 
@@ -228,6 +258,7 @@ impl <'a, T: Node> DerefMut for Tp<'a, T> {
 /// versions of `get()` and `get_mut()`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TpDyn<'a> {
+    owner:  RID,
     node:   RID,
     tree:   *mut dyn NodeTree,
     p_life: PhantomData<&'a ()>
@@ -235,25 +266,36 @@ pub struct TpDyn<'a> {
 
 impl <'a> TpDyn<'a> {
     
-    /// Creates a new `TpDyn<T>` via a raw pointer to the `NodeTree` and the referenced Node's `RID`.
+    /// Creates a new `TpDyn` via a raw pointer to the `NodeTree` and the referenced Node's `RID`.
     ///
     /// # Safety
     /// The responsibility of passing a valid pointer of the `NodeTree` to this structure is on the
     /// programmer.
     /// However, it is advised to use a `Node`'s `get_node()` or `get_node_from_tree()`
     /// function to have it be constructed in a safe manner for you!
-    pub unsafe fn new(tree: *mut dyn NodeTree, node: RID) -> Self {
-        TpDyn {
+    ///
+    /// # Failure
+    /// Will not return a valid `TpDyn` pointer if the referenced `Node` is invalid!
+    pub unsafe fn new(tree: *mut dyn NodeTree, owner: RID, node: RID) -> TreeOption<'a, Self> {
+        
+        // First check if the node exists!
+        match (&*tree).get_node(node) {
+            Some(_) => (),
+            None    => return TreeOption::new(tree, owner, None)
+        }
+
+        TreeOption::new(tree, owner, Some(TpDyn {
+            owner,
             node,
             tree,
             p_life: PhantomData
-        }
+        }))
     }
 
     /// Converts this to a type-coerced pointer.
-    pub fn to<T: Node>(self) -> Option<Tp<'a, T>> {
+    pub fn to<T: Node>(self) -> TreeOption<'a, Tp<'a, T>> {
         unsafe {
-            Tp::new(self.tree, self.node)
+            Tp::new(self.tree, self.owner, self.node)
         }
     }
 
@@ -289,35 +331,50 @@ impl <'a> TpDyn<'a> {
     }
     
     /// Attempts to get a reference to the underlying `Node`.
+    ///
     /// # Panics
     /// Panics if the node is invalid!
     pub fn get(&self) -> &dyn Node {
         let node: Option<&dyn Node> = unsafe { &*self.tree }.get_node_raw(self.node).map(|n| unsafe { &*n });
         match node {
             Some(node) => node,
-            None       => panic!("Invalid Node!")
+            None       => self.fail("Invalid Node!")
         }
     }
     
     /// Attempts to get a reference to the underlying `Node`. Returns `None` if the `Node` is invalid.
-    pub fn try_get(&self) -> Option<&dyn Node> {
-        unsafe { &*self.tree }.get_node_raw(self.node).map(|n| unsafe { &*n })
+    pub fn try_get(&self) -> TreeOption<'a, &dyn Node> {
+        match unsafe { &*self.tree }.get_node_raw(self.node).map(|n| unsafe { &*n }) {
+            Some(node) => unsafe { TreeOption::new(self.tree, self.owner, Some(node)) },
+            None       => unsafe { TreeOption::new(self.tree, self.owner, None)       }
+        }
     }
     
     /// Attempts to get a mutable reference to the underlying `Node`.
+    ///
     /// # Panics
     /// Panics if the node is invalid!
     pub fn get_mut(&mut self) -> &mut dyn Node {
         let node: Option<&mut dyn Node> = unsafe { &mut *self.tree }.get_node_mut_raw(self.node).map(|n| unsafe { &mut *n });
         match node {
             Some(node) => node,
-            None       => panic!("Invalid Node!")
+            None       => self.fail("Invalid Node!")
         }
     }
     
     /// Attempts to get a mutable reference to the underlying `Node`. Returns `None` if the `Node` is invalid.
-    pub fn try_get_mut(&mut self) -> Option<&mut dyn Node> {
-        unsafe { &mut *self.tree }.get_node_mut_raw(self.node).map(|n| unsafe { &mut *n })
+    pub fn try_get_mut(&mut self) -> TreeOption<'a, &mut dyn Node> {
+        match unsafe { &mut *self.tree }.get_node_mut_raw(self.node).map(|n| unsafe { &mut *n }) {
+            Some(node) => unsafe { TreeOption::new(self.tree, self.owner, Some(node)) },
+            None       => unsafe { TreeOption::new(self.tree, self.owner, None)       }
+        }
+    }
+
+    /// Marks a failed operation with a panic on the log, and panics the main thread.
+    fn fail(&self, msg: &str) -> ! {
+        unsafe { (&mut *self.tree).get_node(self.owner).unwrap_unchecked() }.post(Log::Panic(msg));
+        println!("\n[RUST TRACE]");
+        panic!();
     }
 }
 

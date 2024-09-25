@@ -97,12 +97,7 @@ fn main() -> () {
     let tree: Box<TreeSimple> = TreeSimple::new(root, LoggerVerbosity::NoDebug);
 
     // Begin operations on the tree.
-    tree.start();
-    loop {
-        if tree.process().has_terminated() {
-            break;
-        }
-    }
+    while tree.process().is_active() {}
 }
 ```
 
@@ -139,119 +134,57 @@ let _ = scene.clone();
 ```
 
 ## Logging
-Logging is also supported. Here is an example setup with an output of a few warnings and a crash. Note that the crash header/footer are customizable, and that the output is actually colored in a real terminal.
+Logging is also supported. Here is an example setup with an output of a warning and a crash. Note that the crash header/footer are customizable, and that the output is actually colored in a real terminal.
 ```rust
-/// Root Node
+use node_tree::prelude::*;
+use node_tree::trees::tree_simple::TreeSimple;
+
+
 #[derive(Debug, Clone, Abstract)]
-pub struct LoggerNode {
+pub struct NodeA {
     base: NodeBase
 }
 
-impl LoggerNode {
-    fn new(name: String) -> Self {
-        LoggerNode { base: NodeBase::new(name) }
+impl NodeA {
+    fn new() -> Self {
+        NodeA {
+            base: NodeBase::new("NodeA".to_string())
+        }
     }
 }
 
-impl Node for LoggerNode {
+impl Node for NodeA {
     fn ready(&mut self) {
-        if self.depth() < 3 {
-            let new_depth: usize = self.depth() + 1;
-            
-            self.add_child(LoggerNode::new(format!("{}_Node", new_depth)));
-            self.add_child(LoggerNode::new(format!("{}_Node", new_depth)));
-            self.add_child(LoggerNode::new(format!("{}_Node", new_depth)));
+        if self.depth() == 2 && self.name() == "NodeA1" {
+            self.post(Log::Warn("Failed to Initialize!"));
         }
-    }
-
-    fn process(&mut self, _delta: f32) {
-        if self.depth() != 3 {
-            return;
-        }
-
-        let grandparent_name: String = {
-            let parent:      Tp<LoggerNode> = self.parent().unwrap();
-            let grandparent: Tp<LoggerNode> = parent.parent().unwrap();
-            
-            grandparent.name().to_string()
-        };
-
-        if self.name() == "3_Node2" && &grandparent_name == "1_Node" {
-            self.post(Log::Warn("Simulating warning!"));
-        }
-
-        if self.name() == "3_Node2" && &grandparent_name == "1_Node2"{
-            self.post(Log::Panic("Simulating panic!"));
+        
+        if self.depth() == 1 && self.name() == "NodeA" {
+            self.get_node::<NodeA>(NodePath::from_str("Foo/Bar")).unwrap();
         }
     }
 }
+
+
+fn test_tree_pointer() {
+    let scene: NodeScene = scene! {
+        NodeA {
+            NodeA,
+            NodeA,
+            NodeA {
+                NodeA,
+                NodeA,
+                NodeA
+            }
+        }
+    };
+
+    let mut tree: Box<TreeSimple> = TreeSimple::new(scene, LoggerVerbosity::All);
+    while !tree.process().has_terminated() {}
+}
 ```
 
-```console
-<22/04/2024 17:25:46 UTC> | [Root/1_Node/2_Node/3_Node2] | WARN | Simulating warning!
-<22/04/2024 17:25:46 UTC> | [Root/1_Node/2_Node1/3_Node2] | WARN | Simulating warning!
-<22/04/2024 17:25:46 UTC> | [Root/1_Node/2_Node2/3_Node2] | WARN | Simulating warning!
-<22/04/2024 17:25:46 UTC> | [Root/1_Node2/2_Node/3_Node2] | PANIC! | Simulating panic!
-
-Unfortunately the program has crashed. Please contact the development team with the following crash report as well as the attachment of the log posted during the time of the crash.
-
-[REPORT START]
-Root
-├── 1_Node
-│   ├── 2_Node
-│   │   ├── 3_Node
-│   │   ├── 3_Node1
-│   │   └── 3_Node2
-│   ├── 2_Node1
-│   │   ├── 3_Node
-│   │   ├── 3_Node1
-│   │   └── 3_Node2
-│   └── 2_Node2
-│       ├── 3_Node
-│       ├── 3_Node1
-│       └── 3_Node2
-├── 1_Node1
-│   ├── 2_Node
-│   │   ├── 3_Node
-│   │   ├── 3_Node1
-│   │   └── 3_Node2
-│   ├── 2_Node1
-│   │   ├── 3_Node
-│   │   ├── 3_Node1
-│   │   └── 3_Node2
-│   └── 2_Node2
-│       ├── 3_Node
-│       ├── 3_Node1
-│       └── 3_Node2
-└── 1_Node2
-    ├── 2_Node
-    │   ├── 3_Node
-    │   ├── 3_Node1
-    │   └── 3_Node2
-    ├── 2_Node1
-    │   ├── 3_Node
-    │   ├── 3_Node1
-    │   └── 3_Node2
-    └── 2_Node2
-        ├── 3_Node
-        ├── 3_Node1
-        └── 3_Node2
-
-[Same-Frame Warnings]
-3_Node2 - Simulating warning!
-3_Node2 - Simulating warning!
-3_Node2 - Simulating warning!
-
-[Same-Frame Panics]
-3_Node2 - Simulating panic!
-
-[REPORT END]
-Time of Crash: 22/04/2024 17:25:46
-Exit Code: 1
-
-Goodbye World! (Program Exited)
-```
-
+![](dynamic_logger.png)
 ## About Cloning
 All nodes are expected to implement the `Clone` trait since there are a few implementations that depend on it, such as `NodeScene`. However, it is possible to mark a field of a node so that it either has a special clone attribute or is uncloneable via provided types by this crate:
 ```rust
@@ -273,6 +206,6 @@ pub struct SpecializedNode {
 - 🔗 An abstracted smart pointer known as `Tp<T>` and `TpDyn` which clones implicitly to reduce syntax noise and allows for low boilerplate.
 - 📚 A caching system hosted on the `NodeTree` to act as a safe interface to ensure `Tp<T>`/`TpDyn` soundness, and increase performance!
 - 👪 The ability to manage nodes with `add_child()` and `remove_child()`.
-- 📝 Includes a dynamic logging system that is deeply integrated with the node framework.
+- 📝 Includes a dynamic logging and error handling system that is deeply integrated with the node framework.
 - 🌲 Allows for the direct referencing of the `NodeTree` through a node's `root()` function.
 - 📜 Includes a method to save (TODO) and handle individual node scenes, such as the handy visual macro `scene!`.

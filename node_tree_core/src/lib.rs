@@ -19,8 +19,7 @@
 //?
 
 //!
-//! The root file of the library.
-//! Contains the `prelude` module which you will probably want to import from.
+//! An extendable system made up of autonomous execution services known as nodes organized in a tree of processes. Inspired by Godot! 
 //!
 //! A simple node implementation will look like the following:
 //! ```rust
@@ -60,6 +59,7 @@ pub mod prelude {
         node_path::NodePath,
         node_tree_base::{ NodeTreeBase, TreeStatus, TreeProcess, ProcessMode, initialize_base },
         tree_pointer::{ Tp, TpDyn },
+        tree_option::TreeOption,
         node_scene::NodeScene,
         rid::RID,
     };

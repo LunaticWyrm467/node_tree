@@ -25,13 +25,14 @@
 //! Every `Node` type must contain a `base: Rc<NodeBase>` field for this reason.
 //!
 
-use std::{ collections::HashSet, hash::Hash };
+use std::{ rc::Rc, sync::Mutex };
 
 use super::{
     logger::Log,
     node_path::NodePath,
     node_tree_base::NodeTreeBase,
     tree_pointer::{ Tp, TpDyn },
+    tree_option::TreeOption,
     rid::RID
 };
 
@@ -59,7 +60,7 @@ pub struct NodeBase {
     owner:    Option<RID>,
     tree:     Option<*mut dyn NodeTree>,  // Lifetimes are managed by the NodeTree/Nodes
     children: Vec<RID>,
-    status:   NodeStatus,
+    status:   Rc<Mutex<NodeStatus>>,
     depth:    usize   // How far the Node is within the tree.
 }
 
@@ -74,7 +75,7 @@ impl NodeBase {
             owner:    None,
             tree:     None,
             children: Vec::new(),
-            status:   NodeStatus::Normal,
+            status:   Rc::new(Mutex::new(NodeStatus::Normal)),
             depth:    0
         }
     }
@@ -141,6 +142,8 @@ impl NodeBase {
     /// Adds a child to the node via a passed in pointer, automatically renaming it if its
     /// name is not unique in the node's children vector.
     ///
+    /// Returns the child's new RID.
+    ///
     /// # Arguments
     /// Aside from the raw pointer to the child itself, this function takes in two booleans for
     /// whether if this node marks the owner of a new scene branch, and if this added node does not
@@ -154,7 +157,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub unsafe fn add_child_from_ptr(&mut self, child_ptr: *mut dyn Node, owner_is_self: bool, ignore_ready: bool) {
+    pub unsafe fn add_child_from_ptr(&mut self, child_ptr: *mut dyn Node, owner_is_self: bool, ignore_ready: bool) -> RID {
         if self.tree.is_none() {
             panic!("Cannot add a child to a node that is not in a `NodeTree`!");
         }
@@ -199,6 +202,7 @@ impl NodeBase {
         // Print the debug information on the child to the console.
         let child: &dyn Node = unsafe { self.tree().unwrap_unchecked().get_node(child_rid).unwrap_unchecked() };
         self.post(Log::Debug(&format!("Node \"{}\" added to the scene as the child of \"{}\"! Unique ID of \"{}\" generated!", child.name(), self.name(), child.rid)));
+        child_rid
     }
 
     /// Removes a child but it does not destroy it, disconnecting from its parent.
@@ -250,16 +254,18 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_child<T: Node>(&self, i: usize) -> Option<Tp<T>> {
+    pub fn get_child<T: Node>(&self, i: usize) -> TreeOption<Tp<T>> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
 
         if i >= self.num_children() {
-            None
+            unsafe {
+                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+            }
         } else {
             unsafe {
-                Tp::new(self.tree.unwrap_unchecked(), self.children[i])
+                Tp::new(self.tree.unwrap_unchecked(), self.rid, self.children[i])
             }
         }
     }
@@ -269,16 +275,18 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_child_dyn(&self, i: usize) -> Option<TpDyn> {
+    pub fn get_child_dyn(&self, i: usize) -> TreeOption<TpDyn> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
 
         if i >= self.num_children() {
-            None
+            unsafe {
+                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+            }
         } else {
             unsafe {
-                Some(TpDyn::new(self.tree.unwrap_unchecked(), self.children[i]))
+                TpDyn::new(self.tree.unwrap_unchecked(), self.rid, self.children[i])
             }
         }
     }
@@ -292,7 +300,7 @@ impl NodeBase {
             panic!("Cannot get children from a node that is not a part of a NodeTree!");
         }
 
-        self.children.iter().map(|&c| unsafe { TpDyn::new(self.tree.unwrap_unchecked(), c) }).collect()
+        self.children.iter().map(|&c| unsafe { TpDyn::new(self.tree.unwrap_unchecked(), self.rid, c).unwrap_unchecked() }).collect()
     }
 
     /// Gets a `Tp<T>` or a Tree Pointer to a given `Node` via a `NodePath`.
@@ -301,7 +309,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_node<T: Node>(&self, path: NodePath) -> Option<Tp<T>> {
+    pub fn get_node<T: Node>(&self, path: NodePath) -> TreeOption<Tp<T>> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -309,10 +317,12 @@ impl NodeBase {
         match self.get_node_raw(path) {
             Some(node_rid) => {
                 unsafe {
-                    Tp::new(self.tree.unwrap_unchecked(), node_rid)
+                    Tp::new(self.tree.unwrap_unchecked(), self.rid, node_rid)
                 }
             },
-            None => None
+            None => unsafe {
+                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+            }
         }
     }
 
@@ -321,7 +331,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_node_dyn(&self, path: NodePath) -> Option<TpDyn> {
+    pub fn get_node_dyn(&self, path: NodePath) -> TreeOption<TpDyn> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -329,10 +339,12 @@ impl NodeBase {
         match self.get_node_raw(path) {
             Some(node_rid) => {
                 unsafe {
-                    Some(TpDyn::new(self.tree.unwrap_unchecked(), node_rid))
+                    TpDyn::new(self.tree.unwrap_unchecked(), self.rid, node_rid)
                 }
             },
-            None => None
+            None => unsafe {
+                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+            }
         }
     }
     
@@ -343,7 +355,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_node_from_tree<T: Node, G: NodeGetter>(&self, path: G) -> Option<Tp<T>> {
+    pub fn get_node_from_tree<T: Node, G: NodeGetter>(&self, path: G) -> TreeOption<Tp<T>> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -351,10 +363,12 @@ impl NodeBase {
         match unsafe { self.tree().unwrap_unchecked() }.get_node_rid(path) {
             Some(node_rid) => {
                 unsafe {
-                    Tp::new(self.tree.unwrap_unchecked(), node_rid)
+                    Tp::new(self.tree.unwrap_unchecked(), self.rid, node_rid)
                 }
             },
-            None => None
+            None => unsafe {
+                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+            }
         }
     }
 
@@ -364,7 +378,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_node_dyn_from_tree<G: NodeGetter>(&self, path: G) -> Option<TpDyn> {
+    pub fn get_node_dyn_from_tree<G: NodeGetter>(&self, path: G) -> TreeOption<TpDyn> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -372,10 +386,12 @@ impl NodeBase {
         match unsafe { self.tree().unwrap_unchecked() }.get_node_rid(path) {
             Some(node_rid) => {
                 unsafe {
-                    Some(TpDyn::new(self.tree.unwrap_unchecked(), node_rid))
+                    TpDyn::new(self.tree.unwrap_unchecked(), self.rid, node_rid)
                 }
             },
-            None => None
+            None => unsafe {
+                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+            }
         }
     }
 
@@ -439,85 +455,6 @@ impl NodeBase {
         self.top_down_tail(iter, new_layer)        
     }
 
-    /// Produces a reverse bottom-up order iteration of all of the nodes connected to this node.
-    /// This is typically used to initialize nodes or scenes of nodes.
-    /// If 'contains_self' is true, then the list will contain this node as well.
-    ///
-    /// # Panics
-    /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn bottom_up(&self, contains_self: bool) -> Vec<RID> {
-        if self.childless() { // Special cases:
-            if contains_self {
-                return vec![self.rid]
-            } else {
-                return vec![]
-            }
-        }
-        
-        let mut iter:  Vec<RID> = Vec::new();
-        let     layer: Vec<RID> = self.gather_deepest();
-
-        self.bottom_up_tail(&mut iter, layer);
-        if contains_self {
-            iter.push(self.rid)
-        }
-        iter
-    }
-
-    /// This gathers the deepest nodes in the tree.
-    ///
-    /// # Panics
-    /// Panics if this Node is not connected to a `NodeTree`.
-    fn gather_deepest(&self) -> Vec<RID> {
-        if self.tree().is_none() {
-            panic!("Cannot get nodes from a node that is not a part of a NodeTree!");
-        }
-
-        let mut deepest_nodes: Vec<RID> = if self.childless() { vec![self.rid] } else { Vec::new() };
-        for node in self.children() {
-            deepest_nodes.append(&mut node.gather_deepest());
-        }
-        deepest_nodes
-    }
-
-    /// The tail end recursive function for the `bottom_up` method.
-    /// Due to how this functions, this function call doesn't actually call itself on different
-    /// layers of the node tree, but it rather calls itself.
-    ///
-    /// # Panics
-    /// Panics if this Node is not connected to a `NodeTree`.
-    fn bottom_up_tail(&self, iter: &mut Vec<RID>, layer: Vec<RID>) -> () {
-        if self.tree().is_none() {
-            panic!("Cannot get nodes from a node that is not a part of a NodeTree!");
-        }
-
-        // If the layer if empty, then return.
-        if layer.is_empty() {
-            return;
-        }
-
-        // Define a function to filter out duplicates.
-        fn filter_duplicates<H: Hash + Eq>(arr: Vec<H>) -> Vec<H> {
-            arr.into_iter().collect::<HashSet<_>>().into_iter().collect()
-        }
-
-        // We get the next layer by getting the node's parents and filtering out duplicates.
-        let next_layer: Vec<RID> = filter_duplicates(unsafe { self.tree().unwrap_unchecked() }.get_all_valid_nodes(&layer)
-            .iter()
-            .map(|node| node.parent.unwrap())
-            .collect());
-        for node in layer {
-            iter.push(node);
-        }
-
-        // If the next layer is only made up of one node and said node has the same RID as this
-        // node, then return.
-        if next_layer[0] == self.rid {
-            return;
-        }
-        self.bottom_up_tail(iter, next_layer);
-    }
-
     /// Gets this Node's absolute `NodePath` to the root of the tree.
     ///
     /// # Panics
@@ -551,7 +488,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn post(&mut self, log: Log) -> () {
+    pub fn post(&self, log: Log) -> () {
         unsafe {
             match &log {
                 Log::Warn(str)  => self.set_status(NodeStatus::JustWarned(str.to_string())),
@@ -592,7 +529,7 @@ impl NodeBase {
         }
         
         // Remove this node and all children nodes from the NodeTree.
-        for node in self.bottom_up(true) {
+        for node in self.top_down(true) {
             let tree: &mut NodeTreeBase = unsafe { self.tree_mut().unwrap_unchecked() };  // UB: Error!
             unsafe {
                 tree.unregister_node(node);
@@ -606,7 +543,6 @@ impl NodeBase {
     }
 
     /// Sets the name of the node without checking if the name is unique.
-    /// This should only be implemented, but not used manually.
     pub unsafe fn set_name_unchecked(&mut self, name: &str) {
         self.name = name.to_string();
     }
@@ -618,7 +554,6 @@ impl NodeBase {
     }
 
     /// Sets the unique `RID` of the node.
-    /// This should only be implemented, but not used manually.
     pub unsafe fn set_rid(&mut self, rid: RID) {
         self.rid = rid;
     }
@@ -633,7 +568,7 @@ impl NodeBase {
 
     /// Gets a mutable reference to the owning `NodeTree` structure, which controls the entire tree.
     /// This will return `None` if the node is not connected to the `NodeTree`.
-    pub fn tree_mut(&mut self) -> Option<&mut dyn NodeTree> {
+    pub fn tree_mut(&self) -> Option<&mut dyn NodeTree> {
         unsafe {
             self.tree.map(|x| &mut *x)
         }
@@ -645,7 +580,6 @@ impl NodeBase {
     }
 
     /// Disconnects the `NodeTree` from this node.
-    /// This should only be implemented, but not used manually.
     pub unsafe fn disconnnect_tree(&mut self) {
         self.tree = None;
     }
@@ -668,13 +602,13 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn owner<T: Node>(&self) -> Option<Tp<T>> {
+    pub fn owner<T: Node>(&self) -> TreeOption<Tp<T>> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
         
         unsafe {
-            Tp::new(self.tree.unwrap_unchecked(), self.owner.unwrap_unchecked())
+            Tp::new(self.tree.unwrap_unchecked(), self.rid, self.owner.unwrap_unchecked())
         }
     }
 
@@ -702,18 +636,16 @@ impl NodeBase {
         }
         
         unsafe {
-            TpDyn::new(self.tree.unwrap_unchecked(), self.owner.unwrap_unchecked())
+            TpDyn::new(self.tree.unwrap_unchecked(), self.rid, self.owner.unwrap_unchecked()).unwrap_unchecked()
         }
     }
 
     /// Sets the owner of the node.
-    /// This should only be implemented, but not used manually.
     pub unsafe fn set_owner(&mut self, owner: RID) {
         self.owner = Some(owner);
     }
 
     /// Disconnects this node's owner from this node.
-    /// This should only be implemented, but not used manually.
     pub unsafe fn disconnnect_owner(&mut self) {
         self.owner = None;
     }
@@ -723,7 +655,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn parent<T: Node>(&self) -> Option<Tp<T>> {
+    pub fn parent<T: Node>(&self) -> TreeOption<Tp<T>> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -731,10 +663,12 @@ impl NodeBase {
         match self.parent {
             Some(parent) => {
                 unsafe {
-                    Tp::new(self.tree.unwrap_unchecked(), parent)
+                    Tp::new(self.tree.unwrap_unchecked(), self.rid, parent)
                 }
             },
-            None => None
+            None => unsafe {
+                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+            }
         }
     }
     
@@ -743,7 +677,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn parent_dyn(&self) -> Option<TpDyn> {
+    pub fn parent_dyn(&self) -> TreeOption<TpDyn> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -751,34 +685,33 @@ impl NodeBase {
         match self.parent {
             Some(parent) => {
                 unsafe {
-                    Some(TpDyn::new(self.tree.unwrap_unchecked(), parent))
+                    TpDyn::new(self.tree.unwrap_unchecked(), self.rid, parent)
                 }
             },
-            None => None
+            None => unsafe {
+                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+            }
         }
     }
 
     /// Sets the parent of this node.
-    /// This should only be implemented, but not used manually.
     pub unsafe fn set_parent(&mut self, parent: RID) {
         self.parent = Some(parent);
     }
 
     /// Disconnects this node's parent from this node.
-    /// This should only be implemented, but not used manually.
     pub unsafe fn disconnnect_parent(&mut self) {
         self.parent = None;
     }
 
     /// Gets the node's status.
-    pub fn status(&self) -> &NodeStatus {
-        &self.status
+    pub fn status(&self) -> NodeStatus {
+        self.status.lock().unwrap().to_owned()
     }
 
     /// Sets the node's status.
-    /// This should only be implemented, but not used manually.
-    pub unsafe fn set_status(&mut self, status: NodeStatus) -> () {
-        self.status = status;
+    pub unsafe fn set_status(&self, status: NodeStatus) -> () {
+        *self.status.lock().unwrap() = status;
     }
 
     /// Gets the node's depth.
@@ -787,7 +720,6 @@ impl NodeBase {
     }
 
     /// Sets the node's depth.
-    /// This should only be implemented, but not used manually.
     pub unsafe fn set_depth(&mut self, depth: usize) -> () {
         self.depth = depth;
     }

@@ -68,14 +68,7 @@ fn test_node_integration() {
 
     // Create the tree.
     let mut tree: Box<TreeSimple> = TreeSimple::new(scene, LoggerVerbosity::NoDebug);
-
-    // Begin operations on the tree.
-    tree.start();
-    loop {
-        if tree.process().has_terminated() {
-            break;
-        }
-    }
+    while !tree.process().has_terminated() {}
 }
 
 
@@ -100,7 +93,7 @@ impl Node for NodeA {
     fn process(&mut self, delta: f32) -> () {
         println!("{} | {}", self.name(), 1f32 / delta);
         if self.is_root() {
-            match self.get_node::<NodeA>(NodePath::from_str("1_Node/2_Node1/3_Node2")) {
+            match self.get_node::<NodeA>(NodePath::from_str("1_Node/2_Node1/3_Node2")).to_option() {
                 Some(node) => println!("{:?}", node),
                 None       => ()
             }

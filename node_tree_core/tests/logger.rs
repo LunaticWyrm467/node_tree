@@ -24,14 +24,8 @@ pub fn test_logger_tree() -> () {
     // Create the tree.
     let     root: LoggerNode      = LoggerNode::new("Root".to_string());
     let mut tree: Box<TreeSimple> = TreeSimple::new(root, LoggerVerbosity::NoDebug);
-
-    // Begin operations on the tree.
-    tree.start();
-    loop {
-        if tree.process().has_terminated() {
-            break;
-        }
-    }
+    
+    while !tree.process().has_terminated() {}
 }
 
 #[derive(Debug, Clone, Abstract)]
