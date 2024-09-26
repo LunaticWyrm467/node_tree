@@ -32,7 +32,7 @@ use super::{
     node_path::NodePath,
     node_tree_base::NodeTreeBase,
     tree_pointer::{ Tp, TpDyn },
-    tree_option::TreeOption,
+    tree_result::TreeResult,
     rid::RID
 };
 
@@ -250,18 +250,18 @@ impl NodeBase {
     }
 
     /// Returns a `Tp<T>` pointer to a child at the given index.
-    /// If there is no child at the given index, or if the wrong type is given, then `None` will be returned.
+    /// If there is no child at the given index, or if the wrong type is given, then `Err` will be returned.
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_child<T: Node>(&self, i: usize) -> TreeOption<Tp<T>> {
+    pub fn get_child<T: Node>(&self, i: usize) -> TreeResult<Tp<T>> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
 
         if i >= self.num_children() {
             unsafe {
-                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(format!("Index {i} was out of the range of this node's children count of {}", self.num_children())))
             }
         } else {
             unsafe {
@@ -271,18 +271,18 @@ impl NodeBase {
     }
     
     /// Returns a `TpDyn` pointer to a child at the given index.
-    /// If there is no child at the given index then `None` will be returned.
+    /// If there is no child at the given index then `Err` will be returned.
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_child_dyn(&self, i: usize) -> TreeOption<TpDyn> {
+    pub fn get_child_dyn(&self, i: usize) -> TreeResult<TpDyn> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
 
         if i >= self.num_children() {
             unsafe {
-                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(format!("Index {i} was out of the range of this node's children count of {}", self.num_children())))
             }
         } else {
             unsafe {
@@ -304,61 +304,62 @@ impl NodeBase {
     }
 
     /// Gets a `Tp<T>` or a Tree Pointer to a given `Node` via a `NodePath`.
-    /// Returns `None` if the address is invalid or if the referenced `Node` is not of the type
+    /// Returns `Err` if the address is invalid or if the referenced `Node` is not of the type
     /// `T`.
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_node<T: Node>(&self, path: NodePath) -> TreeOption<Tp<T>> {
+    pub fn get_node<T: Node>(&self, path: NodePath) -> TreeResult<Tp<T>> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
 
-        match self.get_node_raw(path) {
+        match self.get_node_raw(path.clone()) {
             Some(node_rid) => {
                 unsafe {
                     Tp::new(self.tree.unwrap_unchecked(), self.rid, node_rid)
                 }
             },
             None => unsafe {
-                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(format!("The path {path:?} is invalid")))
             }
         }
     }
 
     /// Gets a `TpDyn` or a Dynamic Tree Pointer to a given `Node` via a `NodePath`.
-    /// Returns `None` if the address is invalid.
+    /// Returns `Err` if the address is invalid.
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_node_dyn(&self, path: NodePath) -> TreeOption<TpDyn> {
+    pub fn get_node_dyn(&self, path: NodePath) -> TreeResult<TpDyn> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
 
-        match self.get_node_raw(path) {
+        match self.get_node_raw(path.clone()) {
             Some(node_rid) => {
                 unsafe {
                     TpDyn::new(self.tree.unwrap_unchecked(), self.rid, node_rid)
                 }
             },
             None => unsafe {
-                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(format!("The path {path:?} is invalid")))
             }
         }
     }
     
     /// Gets a `Tp<T>` or a Tree Pointer to a given `Node` via either a `NodePath`, a `&str`, or a
     /// String (the latter two may be used to denote Singletons).
-    /// Returns `None` if the address is invalid or if the referenced `Node` is not of the type
+    /// Returns `Err` if the address is invalid or if the referenced `Node` is not of the type
     /// `T`.
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_node_from_tree<T: Node, G: NodeGetter>(&self, path: G) -> TreeOption<Tp<T>> {
+    pub fn get_node_from_tree<T: Node, G: NodeGetter>(&self, path: G) -> TreeResult<Tp<T>> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
+        let path_str: String = format!("{path:?}");
 
         match unsafe { self.tree().unwrap_unchecked() }.get_node_rid(path) {
             Some(node_rid) => {
@@ -367,21 +368,22 @@ impl NodeBase {
                 }
             },
             None => unsafe {
-                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(format!("The root path {path_str:?} is invalid")))
             }
         }
     }
 
     /// Gets a `TpDyn` or a Dynamic Tree Pointer to a given `Node` via either a `NodePath`, a `&str`, or a
     /// String (the latter two may be used to denote Singletons).
-    /// Returns `None` if the address is invalid.
+    /// Returns `Err` if the address is invalid.
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_node_dyn_from_tree<G: NodeGetter>(&self, path: G) -> TreeOption<TpDyn> {
+    pub fn get_node_dyn_from_tree<G: NodeGetter>(&self, path: G) -> TreeResult<TpDyn> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
+        let path_str: String = format!("{path:?}");
 
         match unsafe { self.tree().unwrap_unchecked() }.get_node_rid(path) {
             Some(node_rid) => {
@@ -390,7 +392,7 @@ impl NodeBase {
                 }
             },
             None => unsafe {
-                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(format!("The root path {path_str:?} is invalid")))
             }
         }
     }
@@ -584,7 +586,7 @@ impl NodeBase {
         self.tree = None;
     }
 
-    /// Gets the `Tp<T>` owner of the node. Returns None if `T` does not match the owner's type.
+    /// Gets the `Tp<T>` owner of the node. Returns `Err` if `T` does not match the owner's type.
     /// The owner is different from the parent. The owner can be thought as the root of the scene
     /// that this node is a part of, rather than the node's actual parent.
     /// In other words, if you had a node tree that looked like this:
@@ -602,7 +604,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn owner<T: Node>(&self) -> TreeOption<Tp<T>> {
+    pub fn owner<T: Node>(&self) -> TreeResult<Tp<T>> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -651,11 +653,11 @@ impl NodeBase {
     }
 
     /// Gets a `Tp<T>` pointer to the direct parent of this node, if the node has one.
-    /// Returns `None` if there is no parent or if `T` does not match the parent's type.
+    /// Returns `Err` if there is no parent or if `T` does not match the parent's type.
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn parent<T: Node>(&self) -> TreeOption<Tp<T>> {
+    pub fn parent<T: Node>(&self) -> TreeResult<Tp<T>> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -667,17 +669,17 @@ impl NodeBase {
                 }
             },
             None => unsafe {
-                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err("This node has no parent".to_string()))
             }
         }
     }
     
     /// Gets a `TpDyn` pointer to the direct parent of this node, if the node has one.
-    /// Returns `None` if there is no parent.
+    /// Returns `Err` if there is no parent.
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn parent_dyn(&self) -> TreeOption<TpDyn> {
+    pub fn parent_dyn(&self) -> TreeResult<TpDyn> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -689,7 +691,7 @@ impl NodeBase {
                 }
             },
             None => unsafe {
-                TreeOption::new(self.tree.unwrap_unchecked(), self.rid, None)
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err("This node has no parent".to_string()))
             }
         }
     }

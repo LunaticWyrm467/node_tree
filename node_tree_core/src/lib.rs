@@ -60,6 +60,7 @@ pub mod prelude {
         node_tree_base::{ NodeTreeBase, TreeStatus, TreeProcess, ProcessMode, initialize_base },
         tree_pointer::{ Tp, TpDyn },
         tree_option::TreeOption,
+        tree_result::TreeResult,
         node_scene::NodeScene,
         rid::RID,
     };

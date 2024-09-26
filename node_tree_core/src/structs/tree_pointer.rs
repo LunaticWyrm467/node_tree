@@ -34,6 +34,7 @@ use crate::traits::{ node::Node, node_tree::NodeTree };
 use super::rid::RID;
 use super::logger::Log;
 use super::tree_option::TreeOption;
+use super::tree_result::TreeResult;
 
 
 /*
@@ -54,9 +55,9 @@ use super::tree_option::TreeOption;
 /// versions of `get()` and `get_mut()`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Tp<'a, T: Node> {
+    tree:   *mut dyn NodeTree,
     owner:  RID,
     node:   RID,
-    tree:   *mut dyn NodeTree,
     p_life: PhantomData<&'a ()>,
     p_type: PhantomData<T>
 }
@@ -74,7 +75,7 @@ impl <'a, T: Node> Tp<'a, T> {
     /// # Failure
     /// Will not return a valid `Tp<T>` pointer if the types do not match, or if the referenced
     /// `Node` is invalid!
-    pub unsafe fn new(tree: *mut dyn NodeTree, owner: RID, node: RID) -> TreeOption<'a, Self> {
+    pub unsafe fn new(tree: *mut dyn NodeTree, owner: RID, node: RID) -> TreeResult<'a, Self> {
         
         // First check if the types match using dynamic dispatch!
         match (&*tree).get_node(node) {
@@ -82,16 +83,16 @@ impl <'a, T: Node> Tp<'a, T> {
                 let any: &dyn Any = node.as_any();
                 match any.downcast_ref::<T>() {
                     Some(_) => (),
-                    None    => return TreeOption::new(tree, owner, None)
+                    None    => return TreeResult::new(tree, owner, Err("The node exists but ultimately is of the wrong type".to_string()))
                 }
             },
-            None => return TreeOption::new(tree, owner, None)
+            None => return TreeResult::new(tree, owner, Err("A non-existent node was referenced".to_string()))
         }
 
-        TreeOption::new(tree, owner, Some(Tp {
+        TreeResult::new(tree, owner, Ok(Tp {
+            tree,
             owner,
             node,
-            tree,
             p_life: PhantomData,
             p_type: PhantomData
         }))
@@ -103,9 +104,9 @@ impl <'a, T: Node> Tp<'a, T> {
     /// Panics if the node is invalid!
     pub fn to_dyn(self) -> TpDyn<'a> {
         unsafe {
-            match TpDyn::new(self.tree, self.owner, self.node).to_option() {
+            match TpDyn::new(self.tree, self.owner, self.node).ok().to_option() {
                 Some(success) => success,
-                None          => self.fail("Cannot cast a null Tp<T> to a dynamic TpDyn!")
+                None          => self.fail("Cannot cast a null Tp<T> to a dynamic TpDyn")
             }
         }
     }
@@ -114,7 +115,7 @@ impl <'a, T: Node> Tp<'a, T> {
     ///
     /// # Failure
     /// Will not return a valid `TpDyn` pointer if the internally referenced `Node` has been invalidated!
-    pub fn try_to_dyn(self) -> TreeOption<'a, TpDyn<'a>> {
+    pub fn try_to_dyn(self) -> TreeResult<'a, TpDyn<'a>> {
         unsafe {
             TpDyn::new(self.tree, self.owner, self.node)
         }
@@ -159,25 +160,25 @@ impl <'a, T: Node> Tp<'a, T> {
                 let any: &dyn Any = node.as_any();
                 match any.downcast_ref::<T>() {
                     Some(node) => node,
-                    None       => self.fail("Invalid node!")
+                    None       => self.fail("The node exists but ultimately is of the wrong type")
                 }
             },
-            None => self.fail("Invalid Node!")
+            None => self.fail("A non-existent node was referenced")
         }
     }
     
-    /// Attempts to get a reference to the underlying `Node`. Returns `None` if the `Node` is invalid.
-    pub fn try_get(&self) -> TreeOption<&T> {
+    /// Attempts to get a reference to the underlying `Node`. Returns `Err` if the `Node` is invalid.
+    pub fn try_get(&self) -> TreeResult<&T> {
         let node: Option<&dyn Node> = unsafe { &*self.tree }.get_node_raw(self.node).map(|n| unsafe { &*n });
         match node {
             Some(node) => {
                 let any: &dyn Any = node.as_any();
                 match any.downcast_ref::<T>() {
-                    Some(node) => unsafe { TreeOption::new(self.tree, self.owner, Some(node)) },
-                    None       => unsafe { TreeOption::new(self.tree, self.owner, None)       }
+                    Some(node) => unsafe { TreeResult::new(self.tree, self.owner, Ok(node)) },
+                    None       => unsafe { TreeResult::new(self.tree, self.owner, Err("The node exists but ultimately is of the wrong type".to_string())) }
                 }
             },
-            None => unsafe { TreeOption::new(self.tree, self.owner, None) }
+            None => unsafe { TreeResult::new(self.tree, self.owner, Err("A non-existent node was referenced".to_string())) }
         }
     }
     
@@ -192,25 +193,25 @@ impl <'a, T: Node> Tp<'a, T> {
                 let any: &mut dyn Any = node.as_any_mut();
                 match any.downcast_mut::<T>() {
                     Some(node) => node,
-                    None       => self.fail("Invalid node!")
+                    None       => self.fail("The node exists but ultimately is of the wrong type")
                 }
             },
-            None => self.fail("Invalid Node!")
+            None => self.fail("A non-existent node was referenced")
         }
     }
     
-    /// Attempts to get a mutable reference to the underlying `Node`. Returns `None` if the `Node` is invalid.
-    pub fn try_get_mut(&mut self) -> TreeOption<&mut T> {
+    /// Attempts to get a mutable reference to the underlying `Node`. Returns `Err` if the `Node` is invalid.
+    pub fn try_get_mut(&mut self) -> TreeResult<&mut T> {
         let node: Option<&mut dyn Node> = unsafe { &mut *self.tree }.get_node_mut_raw(self.node).map(|n| unsafe { &mut *n });
         match node {
             Some(node) => {
                 let any: &mut dyn Any = node.as_any_mut();
                 match any.downcast_mut::<T>() {
-                    Some(node) => unsafe { TreeOption::new(self.tree, self.owner, Some(node)) },
-                    None       => unsafe { TreeOption::new(self.tree, self.owner, None)       }
+                    Some(node) => unsafe { TreeResult::new(self.tree, self.owner, Ok(node)) },
+                    None       => unsafe { TreeResult::new(self.tree, self.owner, Err("The node exists but ultimately is of the wrong type".to_string())) }
                 }
             },
-            None => unsafe { TreeOption::new(self.tree, self.owner, None) }
+            None => unsafe { TreeResult::new(self.tree, self.owner, Err("A non-existent node was referenced".to_string())) }
         }
     }
 
@@ -276,15 +277,15 @@ impl <'a> TpDyn<'a> {
     ///
     /// # Failure
     /// Will not return a valid `TpDyn` pointer if the referenced `Node` is invalid!
-    pub unsafe fn new(tree: *mut dyn NodeTree, owner: RID, node: RID) -> TreeOption<'a, Self> {
+    pub unsafe fn new(tree: *mut dyn NodeTree, owner: RID, node: RID) -> TreeResult<'a, Self> {
         
         // First check if the node exists!
         match (&*tree).get_node(node) {
             Some(_) => (),
-            None    => return TreeOption::new(tree, owner, None)
+            None    => return TreeResult::new(tree, owner, Err("A non-existent node was referenced".to_string()))
         }
 
-        TreeOption::new(tree, owner, Some(TpDyn {
+        TreeResult::new(tree, owner, Ok(TpDyn {
             owner,
             node,
             tree,
@@ -293,7 +294,7 @@ impl <'a> TpDyn<'a> {
     }
 
     /// Converts this to a type-coerced pointer.
-    pub fn to<T: Node>(self) -> TreeOption<'a, Tp<'a, T>> {
+    pub fn to<T: Node>(self) -> TreeResult<'a, Tp<'a, T>> {
         unsafe {
             Tp::new(self.tree, self.owner, self.node)
         }
@@ -338,15 +339,15 @@ impl <'a> TpDyn<'a> {
         let node: Option<&dyn Node> = unsafe { &*self.tree }.get_node_raw(self.node).map(|n| unsafe { &*n });
         match node {
             Some(node) => node,
-            None       => self.fail("Invalid Node!")
+            None       => self.fail("A non-existent node was referenced")
         }
     }
     
-    /// Attempts to get a reference to the underlying `Node`. Returns `None` if the `Node` is invalid.
-    pub fn try_get(&self) -> TreeOption<'a, &dyn Node> {
+    /// Attempts to get a reference to the underlying `Node`. Returns `Err` if the `Node` is invalid.
+    pub fn try_get(&self) -> TreeResult<'a, &dyn Node> {
         match unsafe { &*self.tree }.get_node_raw(self.node).map(|n| unsafe { &*n }) {
-            Some(node) => unsafe { TreeOption::new(self.tree, self.owner, Some(node)) },
-            None       => unsafe { TreeOption::new(self.tree, self.owner, None)       }
+            Some(node) => unsafe { TreeResult::new(self.tree, self.owner, Ok(node)) },
+            None       => unsafe { TreeResult::new(self.tree, self.owner, Err("A non-existent node was referenced".to_string())) }
         }
     }
     
@@ -358,15 +359,15 @@ impl <'a> TpDyn<'a> {
         let node: Option<&mut dyn Node> = unsafe { &mut *self.tree }.get_node_mut_raw(self.node).map(|n| unsafe { &mut *n });
         match node {
             Some(node) => node,
-            None       => self.fail("Invalid Node!")
+            None       => self.fail("A non-existent node was referenced")
         }
     }
     
-    /// Attempts to get a mutable reference to the underlying `Node`. Returns `None` if the `Node` is invalid.
-    pub fn try_get_mut(&mut self) -> TreeOption<'a, &mut dyn Node> {
+    /// Attempts to get a mutable reference to the underlying `Node`. Returns `Err` if the `Node` is invalid.
+    pub fn try_get_mut(&mut self) -> TreeResult<'a, &mut dyn Node> {
         match unsafe { &mut *self.tree }.get_node_mut_raw(self.node).map(|n| unsafe { &mut *n }) {
-            Some(node) => unsafe { TreeOption::new(self.tree, self.owner, Some(node)) },
-            None       => unsafe { TreeOption::new(self.tree, self.owner, None)       }
+            Some(node) => unsafe { TreeResult::new(self.tree, self.owner, Ok(node)) },
+            None       => unsafe { TreeResult::new(self.tree, self.owner, Err("A non-existent node was referenced".to_string())) }
         }
     }
 

@@ -1,3 +1,31 @@
+//===================================================================================================================================================================================//
+//
+//  /$$$$$$$$                                   /$$$$$$              /$$     /$$                    
+// |__  $$__/                                  /$$__  $$            | $$    |__/                    
+//    | $$  /$$$$$$   /$$$$$$   /$$$$$$       | $$  \ $$  /$$$$$$  /$$$$$$   /$$  /$$$$$$  /$$$$$$$ 
+//    | $$ /$$__  $$ /$$__  $$ /$$__  $$      | $$  | $$ /$$__  $$|_  $$_/  | $$ /$$__  $$| $$__  $$
+//    | $$| $$  \__/| $$$$$$$$| $$$$$$$$      | $$  | $$| $$  \ $$  | $$    | $$| $$  \ $$| $$  \ $$
+//    | $$| $$      | $$_____/| $$_____/      | $$  | $$| $$  | $$  | $$ /$$| $$| $$  | $$| $$  | $$
+//    | $$| $$      |  $$$$$$$|  $$$$$$$      |  $$$$$$/| $$$$$$$/  |  $$$$/| $$|  $$$$$$/| $$  | $$
+//    |__/|__/       \_______/ \_______/       \______/ | $$____/    \___/  |__/ \______/ |__/  |__/
+//                                                      | $$                                        
+//                                                      | $$                                        
+//                                                      |__/                                        
+//
+//===================================================================================================================================================================================//
+
+//?
+//? Created by LunaticWyrm467 and others.
+//? 
+//? All code is licensed under the MIT license.
+//? Feel free to reproduce, modify, and do whatever.
+//?
+
+//!
+//! Implements a counterpart to the standard library's `Option<T>` which enables for option-like
+//! dynamics with error reporting that is tied into the current node tree and logger.
+//! 
+
 use std::mem;
 use std::hint::unreachable_unchecked;
 use std::marker::PhantomData;
@@ -7,14 +35,15 @@ use std::option::{ Iter, IterMut };
 use crate::traits::node_tree::NodeTree;
 use super::rid::RID;
 use super::logger::Log;
+use super::tree_result::TreeResult;
 
 
 /// A simple counterpart to the standard library's `Option`, which has a few extra features such as
 /// logging panics or undesired behaviours to the log.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TreeOption<'a, T> {
-    owner:  RID,
     tree:   *mut dyn NodeTree,
+    owner:  RID,
     object: Option<T>,
     p_life: PhantomData<&'a ()>
 }
@@ -28,8 +57,8 @@ impl <'a, T> TreeOption<'a, T> {
     /// Instead of constructing this type yourself, it is best to only use it when a node function
     /// constructs it for you.
     #[inline]
-    pub unsafe fn new(tree: *mut dyn NodeTree, owner: RID, object: Option<T>) -> Self {
-        TreeOption { owner, tree, object, p_life: PhantomData }
+    pub const unsafe fn new(tree: *mut dyn NodeTree, owner: RID, object: Option<T>) -> Self {
+        TreeOption { tree, owner, object, p_life: PhantomData }
     }
 
     /// Converts this to an `Option<T>` type.
@@ -56,7 +85,7 @@ impl <'a, T> TreeOption<'a, T> {
         self.object.is_none()
     }
 
-    ///// Returns `true` if the option is a [`None`] or the value inside of it matches a predicate.
+    ///// Returns `true` if the option is a `None` or the value inside of it matches a predicate.
     //#[inline]
     //pub fn is_none_or(&self, f: impl FnOnce(&T) -> bool) -> bool {
     //    self.object.as_ref().is_none_or(f)
@@ -65,13 +94,13 @@ impl <'a, T> TreeOption<'a, T> {
     /// Converts from `&Option<T>` to `Option<&T>`.
     #[inline]
     pub const fn as_ref(&self) -> TreeOption<&T> {
-        TreeOption { owner: self.owner, tree: self.tree, object: self.object.as_ref(), p_life: self.p_life }
+        TreeOption { tree: self.tree, owner: self.owner, object: self.object.as_ref(), p_life: self.p_life }
     }
 
     /// Converts from `&mut Option<T>` to `Option<&mut T>`.
     #[inline]
     pub fn as_mut(&mut self) -> TreeOption<&mut T> {
-        TreeOption { owner: self.owner, tree: self.tree, object: self.object.as_mut(), p_life: self.p_life }
+        TreeOption { tree: self.tree, owner: self.owner, object: self.object.as_mut(), p_life: self.p_life }
     }
 
     /// Returns a slice of the contained value, if any. If this is `None`, an
@@ -115,8 +144,12 @@ impl <'a, T> TreeOption<'a, T> {
     ///
     /// Because this function may panic, its use is generally discouraged.
     /// Instead, prefer to use pattern matching and handle the `None`
-    /// case explicitly, or call [`unwrap_or`], [`unwrap_or_else`], or
-    /// [`unwrap_or_default`].
+    /// case explicitly, or call `unwrap_or`, `unwrap_or_else`, or
+    /// `unwrap_or_default`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the self value equals `None`.
     #[inline(always)]
     pub fn unwrap(self) -> T {
         match self.object {
@@ -150,7 +183,7 @@ impl <'a, T> TreeOption<'a, T> {
     /// Returns the contained `Some` value or a default.
     ///
     /// Consumes the `self` argument then, if `Some`, returns the contained
-    /// value, otherwise if `None`, returns the [default value] for that
+    /// value, otherwise if `None`, returns the default value for that
     /// type.
     pub fn unwrap_or_default(self) -> T
     where
@@ -173,10 +206,10 @@ impl <'a, T> TreeOption<'a, T> {
         }
     }
 
-    /// Maps an `Option<T>` to `Option<U>` by applying a function to a contained value (if `Some`) or returns `None` (if `None`).
+    /// Maps an `TreeOption<T>` to `TreeOption<U>` by applying a function to a contained value (if `Some`) or returns `None` (if `None`).
     #[inline]
     pub fn map<U, F: FnOnce(T) -> U>(self, f: F) -> TreeOption<'a, U> {
-        TreeOption { owner: self.owner, tree: self.tree, object: self.object.map(f), p_life: self.p_life }
+        TreeOption { tree: self.tree, owner: self.owner, object: self.object.map(f), p_life: self.p_life }
     }
 
     /// Calls a function with a reference to the contained value if `Some`.
@@ -187,7 +220,6 @@ impl <'a, T> TreeOption<'a, T> {
         if let Some(ref x) = self.object {
             f(x);
         }
-
         self
     }
 
@@ -211,42 +243,46 @@ impl <'a, T> TreeOption<'a, T> {
         F: FnOnce(T) -> U,
     { self.object.map_or_else(default, f) }
 
-    /// Transforms the `Option<T>` into a `Result<T, E>`, mapping `Some(v)` to
+    /// Transforms the `TreeOption<T>` into a `TreeResult<T, E>`, mapping `Some(v)` to
     /// `Ok(v)` and `None` to `Err(err)`.
     ///
     /// Arguments passed to `ok_or` are eagerly evaluated; if you are passing the
     /// result of a function call, it is recommended to use `ok_or_else`, which is
     /// lazily evaluated.
     #[inline]
-    pub fn ok_or<E>(self, err: E) -> Result<T, E> {
-        self.object.ok_or(err)
+    pub fn ok_or(self, err: String) -> TreeResult<'a, T> {
+        unsafe {
+            TreeResult::new(self.tree, self.owner, self.object.ok_or(err))
+        }
     }
 
-    /// Transforms the `Option<T>` into a `Result<T, E>`, mapping `Some(v)` to
+    /// Transforms the `TreeOption<T>` into a `TreeResult<T, E>`, mapping `Some(v)` to
     /// `Ok(v)` and `None` to `Err(err())`.
-    pub fn ok_or_else<E, F: FnOnce() -> E>(self, err: F) -> Result<T, E> {
-        self.object.ok_or_else(err)
+    pub fn ok_or_else<F: FnOnce() -> String>(self, err: F) -> TreeResult<'a, T> {
+        unsafe {
+            TreeResult::new(self.tree, self.owner, self.object.ok_or_else(err))
+        }
     }
 
-    /// Converts from `Option<T>` (or `&Option<T>`) to `Option<&T::Target>`.
+    /// Converts from `TreeOption<T>` (or `&TreeOption<T>`) to `TreeOption<&T::Target>`.
     ///
     /// Leaves the original `Option` in-place, creating a new one with a reference
     /// to the original one, additionally coercing the contents via `Deref`.
     #[inline]
-    pub fn as_deref(&self) -> Option<&T::Target>
+    pub fn as_deref(&self) -> TreeOption<&T::Target>
     where
         T: Deref,
-    { self.object.as_deref() }
+    { self.as_another(self.object.as_deref()) }
 
-    /// Converts from `Option<T>` (or `&mut Option<T>`) to `Option<&mut T::Target>`.
+    /// Converts from `TreeOption<T>` (or `&mut TreeOption<T>`) to `TreeOption<&mut T::Target>`.
     ///
     /// Leaves the original `Option` in-place, creating a new one containing a mutable reference to
     /// the inner type's `Deref::Target` type.
     #[inline]
-    pub fn as_deref_mut(&mut self) -> Option<&mut T::Target>
+    pub fn as_deref_mut(&mut self) -> TreeOption<&mut T::Target>
     where
         T: DerefMut,
-    { self.object.as_deref_mut() }
+    { TreeOption { tree: self.tree, owner: self.owner, object: self.object.as_deref_mut(), p_life: self.p_life } }
 
     /// Returns an iterator over the possibly contained value.
     #[inline]
@@ -266,10 +302,10 @@ impl <'a, T> TreeOption<'a, T> {
     /// result of a function call, it is recommended to use `and_then`, which is
     /// lazily evaluated.
     #[inline]
-    pub fn and<'b, U>(self, optb: TreeOption<'b, U>) -> TreeOption<'b, U> {
+    pub fn and<'b, U>(self, optb: TreeOption<'b, U>) -> TreeOption<'a, U> {
         match self.object {
-            Some(_) => optb,
-            None    => TreeOption { owner: self.owner, tree: self.tree, object: None, p_life: optb.p_life }
+            Some(_) => self.transfer_owner(optb),
+            None    => self.as_none()
         }
     }
 
@@ -279,10 +315,10 @@ impl <'a, T> TreeOption<'a, T> {
     /// Some languages call this operation flatmap.
     #[inline]
     #[doc(alias = "flatmap")]
-    pub fn and_then<'b, U, F: FnOnce(T) -> TreeOption<'b, U>>(self, f: F) -> TreeOption<'b, U> {
+    pub fn and_then<'b, U, F: FnOnce(T) -> TreeOption<'b, U>>(self, f: F) -> TreeOption<'a, U> {
         match self.object {
-            Some(x) => f(x),
-            None    => TreeOption { owner: self.owner, tree: self.tree, object: None, p_life: PhantomData }
+            Some(x) => TreeOption { tree: self.tree, owner: self.owner, object: f(x).to_option(), p_life: self.p_life },
+            None    => TreeOption { tree: self.tree, owner: self.owner, object: None,             p_life: self.p_life }
         }
     }
 
@@ -294,7 +330,7 @@ impl <'a, T> TreeOption<'a, T> {
     /// - `None` if `predicate` returns `false`.
     ///
     /// This function works similar to `Iterator::filter()`. You can imagine
-    /// the `Option<T>` being an iterator over one or zero elements. `filter()`
+    /// the `TreeOption<T>` being an iterator over one or zero elements. `filter()`
     /// lets you decide which elements to keep.
     #[inline]
     pub fn filter<P: FnOnce(&T) -> bool>(self, predicate: P) -> Self {
@@ -311,30 +347,30 @@ impl <'a, T> TreeOption<'a, T> {
     /// Arguments passed to `or` are eagerly evaluated; if you are passing the
     /// result of a function call, it is recommended to use `or_else`, which is
     /// lazily evaluated.
-    pub fn or(self, optb: TreeOption<'a, T>) -> TreeOption<'a, T> {
+    pub fn or<'b>(self, optb: TreeOption<'b, T>) -> TreeOption<'a, T> {
         match self.object {
-            x @ Some(_) => TreeOption { owner: self.owner, tree: self.tree, object: x, p_life: self.p_life },
-            None        => optb
+            object @ Some(_) => TreeOption { tree: self.tree, owner: self.owner, object, p_life: self.p_life },
+            None             => self.transfer_owner(optb)
         }
     }
 
     /// Returns the option if it contains a value, otherwise calls `f` and
     /// returns the result.
     #[inline]
-    pub fn or_else<F: FnOnce() -> TreeOption<'a, T>>(self, f: F) -> TreeOption<'a, T> {
+    pub fn or_else<'b, F: FnOnce() -> TreeOption<'b, T>>(self, f: F) -> TreeOption<'a, T> {
         match self.object {
-            x @ Some(_) => TreeOption { owner: self.owner, tree: self.tree, object: x, p_life: self.p_life },
-            None        => f(),
+            object @ Some(_) => TreeOption { tree: self.tree, owner: self.owner, object, p_life: self.p_life },
+            None             => self.transfer_owner(f()),
         }
     }
 
     /// Returns `Some` if exactly one of `self`, `optb` is `Some`, otherwise returns `None`.
     #[inline]
-    pub fn xor(self, optb: TreeOption<'a, T>) -> TreeOption<'a, T> {
+    pub fn xor<'b>(self, optb: TreeOption<'b, T>) -> TreeOption<'a, T> {
         match (self.object, optb.object) {
-            (a @ Some(_), None) => TreeOption { owner: self.owner, tree: self.tree, object: a, p_life: self.p_life },
-            (None, b @ Some(_)) => TreeOption { owner: self.owner, tree: self.tree, object: b, p_life: self.p_life },
-            _                   => TreeOption { owner: self.owner, tree: self.tree, object: None, p_life: self.p_life }
+            (opta @ Some(_), None) => TreeOption { tree: self.tree, owner: self.owner, object: opta, p_life: self.p_life },
+            (None, optb @ Some(_)) => TreeOption { tree: self.tree, owner: self.owner, object: optb, p_life: self.p_life },
+            _                      => TreeOption { tree: self.tree, owner: self.owner, object: None, p_life: self.p_life }
         }
     }
 
@@ -400,8 +436,8 @@ impl <'a, T> TreeOption<'a, T> {
     #[inline]
     pub fn take_if<P: FnOnce(&mut T) -> bool>(&mut self, predicate: P) -> TreeOption<T> {
         TreeOption {
-            owner:  self.owner,
             tree:   self.tree,
+            owner:  self.owner,
             object: if self.as_mut().map_or(false, predicate) { self.object.take() } else { None },
             p_life: self.p_life
         }
@@ -415,14 +451,14 @@ impl <'a, T> TreeOption<'a, T> {
         mem::replace(&mut self.object, Some(value))
     }
 
-    /// Zips `self` with another `Option`.
+    /// Zips `self` with another `TreeOption`.
     ///
     /// If `self` is `Some(s)` and `other` is `Some(o)`, this method returns `Some((s, o))`.
     /// Otherwise, `None` is returned.
-    pub fn zip<U>(self, other: TreeOption<'a, U>) -> TreeOption<'a, (T, U)> {
+    pub fn zip<'b, U>(self, other: TreeOption<'b, U>) -> TreeOption<'a, (T, U)> {
         TreeOption {
-            owner:  self.owner,
             tree:   self.tree,
+            owner:  self.owner,
             object: self.object.zip(other.object),
             p_life: self.p_life
         }
@@ -434,12 +470,17 @@ impl <'a, T> TreeOption<'a, T> {
     /// Otherwise, `None` is returned.
     pub fn zip_with<U, R, F: FnOnce(T, U) -> R>(self, other: TreeOption<'a, U>, f: F) -> TreeOption<'a, R> {
         TreeOption {
-            owner:  self.owner,
             tree:   self.tree,
+            owner:  self.owner,
             object: self.object.zip_with(other.object, f),
             p_life: self.p_life
         }
     }*/
+
+    /// Gives another `TreeOption` the same node owner as this one.
+    pub fn transfer_owner<'b, U>(&self, other: TreeOption<'b, U>) -> TreeOption<'a, U> {
+        TreeOption { tree: self.tree, owner: self.owner, object: other.object, p_life: self.p_life}
+    }
 
     /// Marks a failed operation with a panic on the log, and panics the main thread.
     fn fail(&self, msg: &str) -> ! {
@@ -448,16 +489,22 @@ impl <'a, T> TreeOption<'a, T> {
         panic!();
     }
     
+    /// Creates a `TreeOption` with all of the calling `TreeOption`'s metadata attached and the
+    /// given optional item as its value.
+    fn as_another<U>(&self, object: Option<U>) -> TreeOption<'a, U> {
+        TreeOption { tree: self.tree, owner: self.owner, object, p_life: self.p_life }
+    }
+    
     /*/// Creates a `TreeOption` with all of the calling `TreeOption`'s metadata attached and the
     /// given item as its value.
     fn as_some<U>(&self, object: U) -> TreeOption<'a, U> {
-        TreeOption { owner: self.owner, tree: self.tree, object: Some(object), p_life: self.p_life }
+        TreeOption { tree: self.tree, owner: self.owner, object: Some(object), p_life: self.p_life }
     }*/
     
     /// Creates a `TreeOption` with all of the calling `TreeOption`'s metadata attached and `None`
     /// as its value.
     fn as_none<U>(&self) -> TreeOption<'a, U> {
-        TreeOption { owner: self.owner, tree: self.tree, object: None, p_life: self.p_life }
+        TreeOption { tree: self.tree, owner: self.owner, object: None, p_life: self.p_life }
     }
 }
 
@@ -471,13 +518,13 @@ impl <'a, T, U> TreeOption<'a, (T, U)> {
     pub fn unzip(self) -> (TreeOption<'a, T>, TreeOption<'a, U>) {
         match self.object {
             Some((a, b)) => (TreeOption {
-                owner:  self.owner,
                 tree:   self.tree,
+                owner:  self.owner,
                 object: Some(a),
                 p_life: self.p_life
             }, TreeOption {
-                owner:  self.owner,
                 tree:   self.tree,
+                owner:  self.owner,
                 object: Some(b),
                 p_life: self.p_life
             }),
@@ -488,14 +535,14 @@ impl <'a, T, U> TreeOption<'a, (T, U)> {
 
 impl <'a, T> TreeOption<'a, &T> {
 
-    /// Maps an `Option<&T>` to an `Option<T>` by copying the contents of the
+    /// Maps an `TreeOption<&T>` to an `TreeOption<T>` by copying the contents of the
     /// option.
     pub fn copied(self) -> TreeOption<'a, T>
     where
         T: Copy,
     { self.map(|x| *x) }
 
-    /// Maps an `Option<&T>` to an `Option<T>` by cloning the contents of the
+    /// Maps an `TreeOption<&T>` to an `TreeOption<T>` by cloning the contents of the
     /// option.
     pub fn cloned(self) -> TreeOption<'a, T>
     where
@@ -505,17 +552,49 @@ impl <'a, T> TreeOption<'a, &T> {
 
 impl <'a, T> TreeOption<'a, &mut T> {
 
-    /// Maps an `Option<&mut T>` to an `Option<T>` by copying the contents of the
+    /// Maps an `TreeOption<&mut T>` to an `TreeOption<T>` by copying the contents of the
     /// option.
     pub fn copied(self) -> TreeOption<'a, T>
     where
         T: Copy,
     { self.map(|x| *x) }
 
-    /// Maps an `Option<&mut T>` to an `Option<T>` by cloning the contents of the
+    /// Maps an `TreeOption<&mut T>` to an `TreeOption<T>` by cloning the contents of the
     /// option.
     pub fn cloned(self) -> TreeOption<'a, T>
     where
         T: Clone,
     { self.map(|x| x.to_owned()) }
+}
+
+impl <'a, 'b, T> TreeOption<'a, TreeResult<'b, T>> {
+    
+    /// Transposes an `TreeOption` of a `TreeResult` into a `TreeResult` of an `TreeOption`.
+    ///
+    /// `None` will be mapped to <code>Ok\(None)</code>.
+    /// <code>Some\(Ok\(\_))</code> and <code>Some\(Err\(\_))</code> will be mapped to
+    /// <code>Ok\(Some\(\_))</code> and <code>Err\(\_)</code>.
+    #[inline]
+    pub fn transpose(self) -> TreeResult<'a, TreeOption<'a, T>> {
+        match self.object {
+            Some(inner) => {
+                match inner.to_result() {
+                    Ok(x)  => unsafe { TreeResult::new(self.tree, self.owner, Ok(TreeOption::new(self.tree, self.owner, Some(x)))) },
+                    Err(e) => unsafe { TreeResult::new(self.tree, self.owner, Err(e)) },
+                }
+            },
+            None => unsafe { TreeResult::new(self.tree, self.owner, Ok(TreeOption::new(self.tree, self.owner, None))) }
+        }
+    }
+}
+
+impl <'a, 'b, T> TreeOption<'a, TreeOption<'b, T>> {
+
+    /// Converts from `TreeOption<TreeOption<T>>` to `TreeOption<T>`.
+    pub fn flatten(self) -> TreeOption<'a, T> {
+        match self.object {
+            Some(object) => TreeOption { tree: self.tree, owner: self.owner, object: object.to_option(), p_life: self.p_life },
+            None         => self.as_none()
+        }
+    }
 }
