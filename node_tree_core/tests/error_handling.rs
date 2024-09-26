@@ -29,7 +29,7 @@ impl Node for NodeA {
 
 
 #[test]
-//#[should_panic]
+#[should_panic]
 fn test_tree_pointer() {
     let scene: NodeScene = scene! {
         NodeA {
