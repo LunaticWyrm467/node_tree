@@ -12,7 +12,7 @@ This crate is in early development. Beware of possible bugs or safety violations
 ## Getting Started!
 Simply either run `cargo add node_tree` at the terminal directed towards the directory of your project, or add `node_tree = X.X` to your `cargo.toml` file.
 
-To begin creating a program in Rust that utilizes a `NodeTree`, we must first create a root `Node`. In order to reduce boilerplate, we will use the included `NodeSys` derive macro to implement the required `Dynamic` and `NodeAbstract` traits. We will then implement the `Node` trait ourselves.
+To begin creating a program in Rust that utilizes a `NodeTree`, we must first create a root `Node`. In order to reduce boilerplate, we will use the included `Abstract` derive macro to implement the required `Dynamic` and `NodeAbstract` traits. We will then implement the `Node` trait ourselves.
 ```rust
 use node_tree::prelude::*;
 
@@ -56,7 +56,7 @@ impl Node for NodeA {
 
         // Using the NodePath and TreePointer, you can reference other nodes in the NodeTree from this node.
         if self.is_root() {
-            match self.get_node::<NodeA>(NodePath::from_str("1_Node/2_Node1/3_Node2")) {
+            match self.get_node::<NodeA>(NodePath::from_str("1_Node/2_Node1/3_Node2")).to_option() {
                 Some(node) => println!("{:?}", node),
                 None       => ()
             }
