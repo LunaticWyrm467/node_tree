@@ -262,10 +262,7 @@ impl <'a, T> TreeResult<'a, T> {
     where
         T: Default,
     {
-        match self.object {
-            Ok(x)  => x,
-            Err(_) => Default::default(),
-        }
+        self.object.unwrap_or_default()
     }
 
     /// Returns the contained `Err` value, consuming the `self` value.
@@ -407,7 +404,7 @@ impl <'a, T> TreeResult<'a, T> {
     
     /// Marks a failed operation with a panic on the log, and panics the main thread.
     fn fail(&self, msg: &str, error: &str) -> ! {
-        unsafe { (&mut *self.tree).get_node(self.owner).unwrap_unchecked() }.post(Log::Panic(&format!("{msg}: {error}")));
+        unsafe { (*self.tree).get_node(self.owner).unwrap_unchecked() }.post(Log::Panic(&format!("{msg}: {error}")));
         println!("\n[RUST TRACE]");
         panic!();
     }

@@ -30,7 +30,7 @@ use std::{ rc::Rc, sync::Mutex };
 use super::{
     logger::Log,
     node_path::NodePath,
-    node_tree_base::NodeTreeBase,
+    node_tree_base::{ NodeTreeBase, TerminationReason },
     tree_pointer::{ Tp, TpDyn },
     tree_result::TreeResult,
     rid::RID
@@ -165,7 +165,7 @@ impl NodeBase {
         // Ensure that the child's name within the context of this node's children is unique.
         let names_of_children: &[String] = &self.children().iter().map(|c| c.name().to_string()).collect::<Vec<_>>();
         let child_name:        &str      = unsafe { &*child_ptr }.name();
-        let unique_name:       String    = ensure_unique_name(&child_name, names_of_children);
+        let unique_name:       String    = ensure_unique_name(child_name, names_of_children);
 
         // Add the child to this node's children and connect it to its parent and owner nodes,
         // as well as the root tree structure's reference.
@@ -209,6 +209,10 @@ impl NodeBase {
     /// Both the child and its children will be disconnected from the tree and their owners.
     /// This will return whether the child node was successfully removed or not.
     ///
+    /// # Note
+    /// This will result in all removed nodes having their `terminal()` function called with the
+    /// reason `RemovedAsChild`.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn remove_child(&mut self, name: &str) -> bool {
@@ -237,7 +241,8 @@ impl NodeBase {
         for (idx, queued_rid) in connected.into_iter().enumerate() { unsafe { 
             let _is_root_child: bool          = idx == 0; // TODO: Use this to save children nodes!
             let queued_node:    &mut dyn Node = self.tree_mut().unwrap_unchecked().get_node_mut(queued_rid).unwrap_unchecked();
-
+            
+            queued_node.terminal(TerminationReason::RemovedAsChild);
             queued_node.disconnnect_parent();
             queued_node.disconnnect_owner();
             queued_node.disconnnect_tree();
@@ -446,8 +451,7 @@ impl NodeBase {
         
         let new_layer: Vec<RID> = unsafe { self.tree().unwrap_unchecked() }.get_all_valid_nodes(&layer)
             .into_iter()
-            .map(|node| node.children.to_owned() )
-            .flatten()
+            .flat_map(|node| node.children.to_owned() )
             .collect();
         if new_layer.is_empty() {
             return;
@@ -490,7 +494,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn post(&self, log: Log) -> () {
+    pub fn post(&self, log: Log) {
         unsafe {
             match &log {
                 Log::Warn(str)  => self.set_status(NodeStatus::JustWarned(str.to_string())),
@@ -512,27 +516,40 @@ impl NodeBase {
     /// If this is the root node, then the destruction of this node will result in the program
     /// itself terminating.
     ///
+    /// # Note
+    /// This will result in all removed nodes having their `terminal()` function called with the
+    /// reason `Freed`.
+    ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn free(&mut self) -> () {
+    pub fn free(&mut self) {
         if self.tree().is_none() {
             panic!("Cannot free a node that is not a part of a NodeTree! Instead, simply let the unbound Node drop out of scope or use drop()!");
         }
         
-        // Remove the reference of this node from its parent if it has a parent.
-        if let Some(parent) = self.parent {
-            unsafe {
-                let rid:       RID           = self.rid;
-                let parent:    &mut dyn Node = self.tree_mut().unwrap_unchecked().get_node_mut(parent).unwrap_unchecked();
-                let child_idx: usize         = parent.children.iter().position(|&c_rid| c_rid == rid).unwrap_unchecked();
-                
-                parent.children.remove(child_idx);
-            }
-        }
-        
-        // Remove this node and all children nodes from the NodeTree.
+        // Call the terminal function on this node,
+        // before removing it and all it's children nodes from the NodeTree.
         for node in self.top_down(true) {
-            let tree: &mut NodeTreeBase = unsafe { self.tree_mut().unwrap_unchecked() };  // UB: Error!
+            let is_self: bool              = node == self.rid;
+            let tree:    &mut NodeTreeBase = unsafe { self.tree_mut().unwrap_unchecked() };
+
+            unsafe {
+                tree.get_node_mut(self.rid).unwrap_unchecked().terminal(TerminationReason::Freed); // Has to be called externally!
+            }
+
+            // Remove the reference of this node from its parent if it has a parent.
+            if is_self {
+                if let Some(parent) = self.parent {
+                    unsafe {
+                        let rid:       RID           = self.rid;
+                        let parent:    &mut dyn Node = self.tree_mut().unwrap_unchecked().get_node_mut(parent).unwrap_unchecked();
+                        let child_idx: usize         = parent.children.iter().position(|&c_rid| c_rid == rid).unwrap_unchecked();
+
+                        parent.children.remove(child_idx);
+                    }
+                }
+            }
+
             unsafe {
                 tree.unregister_node(node);
             }
@@ -545,6 +562,10 @@ impl NodeBase {
     }
 
     /// Sets the name of the node without checking if the name is unique.
+    ///
+    /// # Safety
+    /// Setting this manually with a name that is already present in another sibling could cause
+    /// hard to find bugs.
     pub unsafe fn set_name_unchecked(&mut self, name: &str) {
         self.name = name.to_string();
     }
@@ -556,6 +577,9 @@ impl NodeBase {
     }
 
     /// Sets the unique `RID` of the node.
+    ///
+    /// # Safety
+    /// This should NOT be called manually.
     pub unsafe fn set_rid(&mut self, rid: RID) {
         self.rid = rid;
     }
@@ -577,11 +601,17 @@ impl NodeBase {
     }
 
     /// Sets the reference to the owning `NodeTree` structure.
+    ///
+    /// # Safety
+    /// This should NOT be called manually.
     pub unsafe fn set_tree(&mut self, tree: *mut dyn NodeTree) {
         self.tree = Some(tree);
     }
 
     /// Disconnects the `NodeTree` from this node.
+    ///
+    /// # Safety
+    /// This should NOT be called manually.
     pub unsafe fn disconnnect_tree(&mut self) {
         self.tree = None;
     }
@@ -643,11 +673,17 @@ impl NodeBase {
     }
 
     /// Sets the owner of the node.
+    ///
+    /// # Safety
+    /// This should NOT be called manually.
     pub unsafe fn set_owner(&mut self, owner: RID) {
         self.owner = Some(owner);
     }
 
     /// Disconnects this node's owner from this node.
+    ///
+    /// # Safety
+    /// This should NOT be called manually.
     pub unsafe fn disconnnect_owner(&mut self) {
         self.owner = None;
     }
@@ -697,11 +733,17 @@ impl NodeBase {
     }
 
     /// Sets the parent of this node.
+    ///
+    /// # Safety
+    /// This should NOT be called manually.
     pub unsafe fn set_parent(&mut self, parent: RID) {
         self.parent = Some(parent);
     }
 
     /// Disconnects this node's parent from this node.
+    ///
+    /// # Safety
+    /// This should NOT be called manually.
     pub unsafe fn disconnnect_parent(&mut self) {
         self.parent = None;
     }
@@ -712,7 +754,10 @@ impl NodeBase {
     }
 
     /// Sets the node's status.
-    pub unsafe fn set_status(&self, status: NodeStatus) -> () {
+    ///
+    /// # Safety
+    /// This should NOT be called manually.
+    pub unsafe fn set_status(&self, status: NodeStatus) {
         *self.status.lock().unwrap() = status;
     }
 
@@ -722,7 +767,10 @@ impl NodeBase {
     }
 
     /// Sets the node's depth.
-    pub unsafe fn set_depth(&mut self, depth: usize) -> () {
+    ///
+    /// # Safety
+    /// This should NOT be called manually.
+    pub unsafe fn set_depth(&mut self, depth: usize) {
         self.depth = depth;
     }
 

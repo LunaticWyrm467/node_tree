@@ -2,21 +2,10 @@ use node_tree::prelude::*;
 use node_tree::trees::tree_simple::TreeSimple;
 
 
-#[derive(Debug, Clone, Abstract)]
-pub struct NodeA {
-    base: NodeBase
-}
+class! {
+    dec NodeA;
 
-impl NodeA {
-    fn new() -> Self {
-        NodeA {
-            base: NodeBase::new("NodeA".to_string())
-        }
-    }
-}
-
-impl Node for NodeA {
-    fn ready(&mut self) {
+    hk ready(&mut self) {
         if self.depth() == 2 && self.name() == "NodeA1" {
             self.post(Log::Warn("Failed to Initialize!"));
         }

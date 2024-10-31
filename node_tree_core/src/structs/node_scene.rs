@@ -56,7 +56,7 @@ impl Clone for NodeScene {
         };
 
         // Recursively clone children
-        let cloned_children: Vec<NodeScene> = self.children.iter().map(|child| child.clone()).collect();
+        let cloned_children: Vec<NodeScene> = self.children.to_vec();
         NodeScene {
             this:     cloned_node,
             children: cloned_children,

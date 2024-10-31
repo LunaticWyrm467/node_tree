@@ -22,7 +22,7 @@
 //! A system that allows for the efficient storage of procedurally tagged items.
 //! 
 
-use std::collections::{ hash_map::{ Values, ValuesMut }, HashMap };
+use std::collections::{ hash_map::{ Iter, IterMut, Values, ValuesMut }, HashMap };
 
 
 /// Describes an RID type.
@@ -30,7 +30,7 @@ pub type RID = u64;
 
 
 /// Holds a hashmap with automatically managed keys or RIDs (reference IDs).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RIDHolder<T> {
     data:    HashMap<RID, T>,
     highest: RID,
@@ -74,11 +74,13 @@ impl <T> RIDHolder<T> {
     }
 
     /// Retrieves an item's reference via an RID.
+    #[inline]
     pub fn retrieve(&self, rid: RID) -> Option<&T> {
         self.data.get(&rid)
     }
     
     /// Retrieves an item's mutable reference via an RID.
+    #[inline]
     pub fn modify(&mut self, rid: RID) -> Option<&mut T> {
         self.data.get_mut(&rid)
     }
@@ -96,12 +98,38 @@ impl <T> RIDHolder<T> {
     }
 
     /// Returns an iter for each of the items.
+    #[inline]
     pub fn iter(&self) -> Values<RID, T> {
         self.data.values()
     }
     
     /// Returns a mutable iter for each of the items.
+    #[inline]
     pub fn iter_mut(&mut self) -> ValuesMut<RID, T> {
         self.data.values_mut()
+    }
+
+    /// Returns an iter for each of the RID and item pairs.
+    #[inline]
+    pub fn iter_enumerated(&self) -> Iter<RID, T> {
+        self.data.iter()
+    }
+    
+    /// Returns a mutable iter for each of the RID and item pairs.
+    #[inline]
+    pub fn iter_mut_enumerated(&mut self) -> IterMut<RID, T> {
+        self.data.iter_mut()
+    }
+
+    /// Returns the number of elements in the container.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Returns whether this container is empty.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 }

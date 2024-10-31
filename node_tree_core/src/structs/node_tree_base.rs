@@ -132,6 +132,14 @@ impl NodeIdentity {
     }
 }
 
+/// Cites the reason for while a Node has its termination function called.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TerminationReason {
+    TreeExit,
+    RemovedAsChild,
+    Freed
+}
+
 
 /*
  * Node Tree
@@ -292,21 +300,21 @@ impl NodeTreeBase {
 
     /// Gets a vector of node references given the passed `RID`s.
     pub fn get_nodes(&self, rids: &[RID]) -> Vec<Option<&dyn Node>> {
-        rids.into_iter()
+        rids.iter()
             .map(|rid| self.nodes.retrieve(*rid).map(|node| unsafe { &**node })).collect::<Vec<_>>()
     }
     
     /// Gets a vector of node references given the passed `RID`s.
     /// All invalid RIDs are simply ignored.
     pub fn get_all_valid_nodes(&self, rids: &[RID]) -> Vec<&dyn Node> {
-        rids.into_iter()
+        rids.iter()
             .filter_map(|rid| self.nodes.retrieve(*rid).map(|node| unsafe { &**node })).collect::<Vec<_>>()
     }
     
     /// Gets a raw mutable pointer to a node reference given an `RID`.
     /// Returns `None` if the `RID` is invalid.
     pub fn get_node_mut_raw(&self, rid: RID) -> Option<*mut dyn Node> {
-        self.nodes.retrieve(rid).map(|node| *node)
+        self.nodes.retrieve(rid).copied()
     }
 
     /// Gets a mutable reference to a node reference given an `RID`.
@@ -320,11 +328,11 @@ impl NodeTreeBase {
     /// Panics if there are duplicate `RID`s in the passed in slice, as you cannot hold two or more
     /// mutable references to one Node.
     pub fn get_nodes_mut(&mut self, rids: &[RID]) -> Vec<Option<&mut dyn Node>> {
-        if rids.len() != rids.into_iter().collect::<HashSet<_>>().len() {
+        if rids.len() != rids.iter().collect::<HashSet<_>>().len() {
             panic!("Duplicate RIDs found!");
         }
 
-        rids.into_iter()
+        rids.iter()
             .map(|rid| self.nodes.retrieve(*rid).map(|node| unsafe { &mut **node })).collect::<Vec<_>>()
     }
     
@@ -334,11 +342,11 @@ impl NodeTreeBase {
     /// Panics if there are duplicate `RID`s in the passed in slice, as you cannot hold two or more
     /// mutable references to one Node.
     pub fn get_all_valid_nodes_mut(&mut self, rids: &[RID]) -> Vec<&mut dyn Node> {
-        if rids.len() != rids.into_iter().collect::<HashSet<_>>().len() {
+        if rids.len() != rids.iter().collect::<HashSet<_>>().len() {
             panic!("Duplicate RIDs found!");
         }
 
-        rids.into_iter()
+        rids.iter()
             .filter_map(|rid| self.nodes.retrieve(*rid).map(|node| unsafe { &mut **node })).collect::<Vec<_>>()
     }
 
@@ -395,13 +403,13 @@ impl NodeTreeBase {
                 }
             }
             
-            TreeStatus::Terminating => node.terminal(),
+            TreeStatus::Terminating => node.terminal(TerminationReason::TreeExit),
             TreeStatus::Terminated  => ()
         }
 
         // Go through each of the children and process them, perpetuating the recursive cycle.
         for child_node in node.children().into_iter().map(|c| c.rid()).collect::<Vec<_>>() {
-            self.process_tail(child_node, delta, process_mode.clone());
+            self.process_tail(child_node, delta, process_mode);
             if self.status == TreeStatus::Terminated {
                 break;
             }
@@ -423,10 +431,9 @@ impl NodeTreeBase {
     }
 
     /// Unregisters a node from the tree, returning the Node as a `Box<T>` if it existed.
-    /// This should not be used manually.
     ///
-    /// # Note
-    /// This does not check if the Node was a singleton and thus cannot be unregistered.
+    /// # Safety
+    /// This should NOT be used manually.
     pub unsafe fn unregister_node(&mut self, rid: RID) -> Option<Box<dyn Node>> {
         
         // Remove this node from the singletons map if it is on there.
@@ -455,11 +462,9 @@ impl NodeTreeBase {
     /// Returns None if the RID is invalid, or a boolean value that if true means that the name was
     /// set properly.
     pub fn register_as_singleton(&mut self, rid: RID, name: String) -> Option<bool> {
-        if self.nodes.retrieve(rid).is_none() {
-            return None;
-        }
+        self.nodes.retrieve(rid)?;
         
-        if !self.identity.values().into_iter().all(|x| x.does_not_match(&name)) {
+        if !self.identity.values().all(|x| x.does_not_match(&name)) {
             return Some(false);
         }
 
@@ -479,10 +484,7 @@ impl NodeTreeBase {
     /// requires a NodePath to access.
     /// It also affects the logger's output.
     pub fn get_node_identity(&self, rid: RID) -> Option<NodeIdentity> {
-        match self.identity.get(&rid) {
-            Some(identity) => Some(identity.to_owned()),
-            None           => None
-        }
+        self.identity.get(&rid).map(|identity| identity.to_owned())
     }
     
     /// Sets the default crash header message.

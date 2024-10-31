@@ -72,25 +72,26 @@ fn test_node_integration() {
 }
 
 
-#[derive(Debug, Clone, Abstract)]
-pub struct NodeA {
-    base: NodeBase
-}
+class! {
+    dec NodeA;
 
-impl NodeA {
-    fn new(name: &str, _example_arg: u8) -> Self {
-        NodeA { base: NodeBase::new(name.to_string()) }
+    let  given_name:  String;
+    let _example_arg: u8;
+
+    hk _init(name: &str, _example_arg: u8) {
+        let given_name: String = name.to_string();
     }
-}
 
-impl Node for NodeA {
-    fn ready(&mut self) -> () {
+    hk ready(&mut self) {
+        let name: &str = &self.given_name.clone();
+        self.set_name(name);
+
         if self.is_root() {
             println!("{:?}", self.children());
         }
     }
 
-    fn process(&mut self, delta: f32) -> () {
+    hk process(&mut self, delta: f32) {
         println!("{} | {}", self.name(), 1f32 / delta);
         if self.is_root() {
             match self.get_node::<NodeA>(NodePath::from_str("1_Node/2_Node1/3_Node2")).to_option() {

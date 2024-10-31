@@ -43,6 +43,8 @@
 //! }
 //! ```
 
+#![allow(clippy::match_like_matches_macro, clippy::should_implement_trait, clippy::inherent_to_string, clippy::single_match)]
+
 pub mod structs;
 pub mod traits;
 pub mod utils;
@@ -50,19 +52,20 @@ pub mod trees;
 pub mod prelude {
     //! Contains everything you'll need to create and handle Nodes and NodeTrees.
     //! You'll probably want to import all from this module.
-
-    pub use node_tree_derive::{ Abstract, Tree, scene };
+    
+    pub use node_tree_derive::{ Abstract, Tree, scene, connect, class };
     pub use crate::structs::{
         cloneable_types::{ Doc, Eoc, Voc },
         logger::{ LoggerVerbosity, Log },
         node_base::NodeBase,
         node_path::NodePath,
-        node_tree_base::{ NodeTreeBase, TreeStatus, TreeProcess, ProcessMode, initialize_base },
+        node_tree_base::{ NodeTreeBase, TreeStatus, TreeProcess, ProcessMode, TerminationReason, initialize_base },
         tree_pointer::{ Tp, TpDyn },
         tree_option::TreeOption,
         tree_result::TreeResult,
         node_scene::NodeScene,
         rid::RID,
+        signals::Signal
     };
     pub use crate::traits::{
         node::{ Node, NodeAbstract },

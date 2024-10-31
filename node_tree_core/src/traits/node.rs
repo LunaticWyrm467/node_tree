@@ -30,7 +30,7 @@ use std::fmt;
 use std::any::Any;
 use std::ops::{ Deref, DerefMut };
 
-use crate::structs::{ node_base::NodeBase, node_tree_base::ProcessMode };
+use crate::structs::{ node_base::NodeBase, node_tree_base::{ ProcessMode, TerminationReason } };
 use super::instanceable::Instanceable;
 
 
@@ -85,7 +85,7 @@ pub trait Node: NodeAbstract {
 
     /// This function can be overrriden to facilitate this node's terminal behaviour.
     /// It is run immeditately after this node is queued for destruction.
-    fn terminal(&mut self) {}
+    fn terminal(&mut self, _reason: TerminationReason) {}
 
     /// This returns the node's process mode, and entirely effects how the process() function
     /// behaves.

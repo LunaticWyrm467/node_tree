@@ -33,7 +33,6 @@ use std::marker::PhantomData;
 use crate::traits::{ node::Node, node_tree::NodeTree };
 use super::rid::RID;
 use super::logger::Log;
-use super::tree_option::TreeOption;
 use super::tree_result::TreeResult;
 
 
@@ -78,7 +77,7 @@ impl <'a, T: Node> Tp<'a, T> {
     pub unsafe fn new(tree: *mut dyn NodeTree, owner: RID, node: RID) -> TreeResult<'a, Self> {
         
         // First check if the types match using dynamic dispatch!
-        match (&*tree).get_node(node) {
+        match (*tree).get_node(node) {
             Some(node) => {
                 let any: &dyn Any = node.as_any();
                 match any.downcast_ref::<T>() {
@@ -126,10 +125,7 @@ impl <'a, T: Node> Tp<'a, T> {
         match unsafe { &*self.tree }.get_node(self.node) {
             Some(node) => {
                 let any: &dyn Any = node.as_any();
-                match any.downcast_ref::<T>() {
-                    Some(_) => true,
-                    None    => false
-                }
+                    any.downcast_ref::<T>().is_some()
             },
             None => false
         }
@@ -140,10 +136,7 @@ impl <'a, T: Node> Tp<'a, T> {
         match unsafe { &*self.tree }.get_node(self.node) {
             Some(node) => {
                 let any: &dyn Any = node.as_any();
-                match any.downcast_ref::<T>() {
-                    Some(_) => false,
-                    None    => true
-                }
+                    any.downcast_ref::<T>().is_none()
             },
             None => true
         }
@@ -217,7 +210,7 @@ impl <'a, T: Node> Tp<'a, T> {
 
     /// Marks a failed operation with a panic on the log, and panics the main thread.
     fn fail(&self, msg: &str) -> ! {
-        unsafe { (&mut *self.tree).get_node(self.owner).unwrap_unchecked() }.post(Log::Panic(msg));
+        unsafe { (*self.tree).get_node(self.owner).unwrap_unchecked() }.post(Log::Panic(msg));
         println!("\n[RUST TRACE]");
         panic!();
     }
@@ -280,7 +273,7 @@ impl <'a> TpDyn<'a> {
     pub unsafe fn new(tree: *mut dyn NodeTree, owner: RID, node: RID) -> TreeResult<'a, Self> {
         
         // First check if the node exists!
-        match (&*tree).get_node(node) {
+        match (*tree).get_node(node) {
             Some(_) => (),
             None    => return TreeResult::new(tree, owner, Err("A non-existent node was referenced".to_string()))
         }
@@ -306,10 +299,7 @@ impl <'a> TpDyn<'a> {
         match node {
             Some(node) => {
                 let any: &dyn Any = node.as_any();
-                match any.downcast_ref::<T>() {
-                    Some(_) => true,
-                    None    => false
-                }
+                    any.downcast_ref::<T>().is_some()
             },
             None => false
         }
@@ -317,18 +307,12 @@ impl <'a> TpDyn<'a> {
 
     /// Determines if the `Node` this pointer is pointing to is valid.
     pub fn is_valid(&self) -> bool {
-        match unsafe { &*self.tree }.get_node(self.node) {
-            Some(_) => true,
-            None    => false
-        }
+        unsafe { &*self.tree }.get_node(self.node).is_some()
     }
     
     /// Determines if the `Node` this pointer is pointing to is invalid.
     pub fn is_null(&self) -> bool {
-        match unsafe { &*self.tree }.get_node(self.node) {
-            Some(_) => false,
-            None    => true
-        }
+        unsafe { &*self.tree }.get_node(self.node).is_none()
     }
     
     /// Attempts to get a reference to the underlying `Node`.
@@ -373,7 +357,7 @@ impl <'a> TpDyn<'a> {
 
     /// Marks a failed operation with a panic on the log, and panics the main thread.
     fn fail(&self, msg: &str) -> ! {
-        unsafe { (&mut *self.tree).get_node(self.owner).unwrap_unchecked() }.post(Log::Panic(msg));
+        unsafe { (*self.tree).get_node(self.owner).unwrap_unchecked() }.post(Log::Panic(msg));
         println!("\n[RUST TRACE]");
         panic!();
     }

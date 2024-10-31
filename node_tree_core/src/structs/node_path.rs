@@ -41,7 +41,7 @@
 //! }
 //! ```
 
-use std::fmt::{self, Write};
+use std::fmt;
 use std::collections::VecDeque;
 
 use crate::traits::node_getter::NodeGetter;
@@ -50,7 +50,7 @@ use super::{ node_tree_base::NodeTreeBase, rid::RID };
 
 /// A NodePath is a specialized string that holds a map for the NodeTree to follow and to retrieve
 /// a given node.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct NodePath {
     path: VecDeque<String>
 }
@@ -85,7 +85,7 @@ impl NodePath {
     }
 
     /// Adds a node to the back of the path.
-    pub fn add_node(&mut self, node_name: &str) -> () {
+    pub fn add_node(&mut self, node_name: &str) {
         self.path.push_back(node_name.to_string())
     }
 

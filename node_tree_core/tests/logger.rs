@@ -28,19 +28,18 @@ pub fn test_logger_tree() -> () {
     while !tree.process().has_terminated() {}
 }
 
-#[derive(Debug, Clone, Abstract)]
-pub struct LoggerNode {
-    base: NodeBase
-}
 
-impl LoggerNode {
-    fn new(name: String) -> Self {
-        LoggerNode { base: NodeBase::new(name) }
-    }
-}
+class! {
+    dec LoggerNode;
 
-impl Node for LoggerNode {
-    fn ready(&mut self) {
+    let given_name: String;
+
+    hk _init(given_name: String) {}
+
+    hk ready(&mut self) {
+        let name: &str = &self.given_name.clone();
+        self.set_name(name);
+
         if self.depth() < 3 {
             let new_depth: usize = self.depth() + 1;
             
@@ -50,7 +49,7 @@ impl Node for LoggerNode {
         }
     }
 
-    fn process(&mut self, _delta: f32) {
+    hk process(&mut self, _delta: f32) {
         if self.depth() != 3 {
             return;
         }

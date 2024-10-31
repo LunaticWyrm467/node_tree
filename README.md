@@ -12,27 +12,26 @@ This crate is in early development. Beware of possible bugs or safety violations
 ## Getting Started!
 Simply either run `cargo add node_tree` at the terminal directed towards the directory of your project, or add `node_tree = X.X` to your `cargo.toml` file.
 
-To begin creating a program in Rust that utilizes a `NodeTree`, we must first create a root `Node`. In order to reduce boilerplate, we will use the included `Abstract` derive macro to implement the required `Dynamic` and `NodeAbstract` traits. We will then implement the `Node` trait ourselves.
+To begin creating a program in Rust that utilizes a `NodeTree`, we must first create a root `Node`. In order to reduce boilerplate, we will use the included `class!` macro to implement the required `Dynamic`, `NodeAbstract`, and `Node` traits.
 ```rust
 use node_tree::prelude::*;
 
 
-#[derive(Debug, Clone, Abstract)] // Nodes require `Debug` and `Clone`.
-pub struct NodeA {
-    base: NodeBase   // Required for Nodes.
-}
+class! {
+    dec NodeA;
 
-impl NodeA {
-    fn new(name: String) -> Self {
-        NodeA { base: NodeBase::new(name) }
-    }
-}
+    // Fields are declared as such:
+    let given_name: String;
+    
+    // Overrideable system functions are known as hooks and start with `hk`.
 
-// Example implementation of the Node trait with custom behaviours.
-impl Node for NodeA {
+    /// Constructors are declared via `_init()`. These will automatically generate a
+    // `new()` function.
+    hk _init(given_name: String) {} // Fields are initialized by introducing a variable
+                                    // of the same name into scope.
 
     /// Runs once the Node is added to the NodeTree.
-    fn ready(&mut self) {
+    hk ready(&mut self) {
 
         // To show off how you could add children nodes.
         if self.depth() < 3 {
@@ -49,7 +48,7 @@ impl Node for NodeA {
     }
 
     /// Runs once per frame. Provides a delta value in seconds between frames.
-    fn process(&mut self, delta: f32) {
+    hk process(&mut self, delta: f32) {
 
         // Example of using the delta value to calculate the current framerate.
         println!("{} | {}", self.name(), 1f32 / delta);
@@ -72,12 +71,12 @@ impl Node for NodeA {
     }
 
     /// Runs once a Node is removed from the NodeTree, whether that is from the program itself terminating or not.
-    fn terminal(&mut self) {}   // We do not do anything here for this example.
+    hk terminal(&mut self, reason: TerminationReason) {}   // We do not do anything here for this example.
 
     /// Returns this node's process mode.
     /// Each process mode controls how the process() function behaves when the NodeTree is paused or not.
     /// (The NodeTree can be paused or unpaused with the pause() or unpause() functions respectively.)
-    fn process_mode(&self) -> ProcessMode {
+    hk process_mode(&self) -> ProcessMode {
         ProcessMode::Inherit    // We will return the default value, which inherits the behaviour from
                                 // the parent node.
     }
@@ -140,21 +139,10 @@ use node_tree::prelude::*;
 use node_tree::trees::tree_simple::TreeSimple;
 
 
-#[derive(Debug, Clone, Abstract)]
-pub struct NodeA {
-    base: NodeBase
-}
+class! {
+    dec NodeA;
 
-impl NodeA {
-    fn new() -> Self {
-        NodeA {
-            base: NodeBase::new("NodeA".to_string())
-        }
-    }
-}
-
-impl Node for NodeA {
-    fn ready(&mut self) {
+    hk ready(&mut self) {
         if self.depth() == 2 && self.name() == "NodeA1" {
             self.post(Log::Warn("Failed to Initialize!"));
         }
@@ -166,7 +154,7 @@ impl Node for NodeA {
 }
 
 
-fn test_tree_pointer() {
+fn main() {
     let scene: NodeScene = scene! {
         NodeA {
             NodeA,
@@ -185,6 +173,56 @@ fn test_tree_pointer() {
 ```
 
 ![](dynamic_logger.png)
+
+## Signals
+Signals are introduced in order to allow for easy communication between various nodes. An example is shown below:
+```rust
+use node_tree::prelude::*;
+use node_tree::trees::TreeSimple;
+
+
+class! {
+    dec NodeA;
+    
+    sig on_event(count: u8);
+    
+    let count: u8 = 0;
+    
+    hk ready(&mut self) {
+        let child: Tp<NodeB> = self.get_child(0).unwrap();
+        connect! { on_event -> child.listener }; // You can also use `~>` which designates a one-shot connection!
+    }
+    
+    hk process(&mut self, _delta: f32) {
+        self.on_event.emit(self.count);
+        self.count += 1;
+    }
+}
+
+
+class! {
+    dec NodeB;
+
+    fn listener(&self, count: &u8) {
+        if *count == 3 {
+            panic!("This was successful!");
+        }
+    }
+}
+
+
+fn main() {
+    let scene: NodeScene = scene! {
+        NodeA {
+            NodeB
+        }
+    };
+
+    let mut tree: Box<TreeSimple> = TreeSimple::new(scene, LoggerVerbosity::All);
+    while tree.process().is_active() {}
+}
+```
+
 ## About Cloning
 All nodes are expected to implement the `Clone` trait since there are a few implementations that depend on it, such as `NodeScene`. However, it is possible to mark a field of a node so that it either has a special clone attribute or is uncloneable via provided types by this crate:
 ```rust
@@ -202,7 +240,7 @@ pub struct SpecializedNode {
 ## Features
 - 🏗️ An easy abstraction framework for different processes to communicate and interact with each other in a scalable manner. Inspired by Godot!
 - ⏯️ The ability to `pause()` and `unpause()` the `NodeTree`, and fine tune individual `Node` behaviours for when a tree is paused/unpaused.
-- 📡 Various methods to communicate with other nodes, such as `owner()`, `parent()`, `get_child()`, `children()`, and `get_node()`.
+- 📡 Various methods to communicate with other nodes, such as `owner()`, `parent()`, `get_child()`, `children()`, and `get_node()`, as well as methods to automate the process such as signals.
 - 🔗 An abstracted smart pointer known as `Tp<T>` and `TpDyn` which clones implicitly to reduce syntax noise and allows for low boilerplate.
 - 📚 A caching system hosted on the `NodeTree` to act as a safe interface to ensure `Tp<T>`/`TpDyn` soundness, and increase performance!
 - 👪 The ability to manage nodes with `add_child()` and `remove_child()`.

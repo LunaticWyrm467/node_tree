@@ -393,7 +393,7 @@ impl <'a, T> TreeOption<'a, T> {
     /// the option already contains `Some`.
     #[inline]
     pub fn get_or_insert(&mut self, value: T) -> &mut T {
-        if let None = self.object {
+        if self.object.is_none() {
             self.object = Some(value);
         }
         unsafe { self.as_mut().unwrap_unchecked() }
@@ -411,7 +411,7 @@ impl <'a, T> TreeOption<'a, T> {
     /// then returns a mutable reference to the contained value.
     #[inline]
     pub fn get_or_insert_with<F: FnOnce() -> T>(&mut self, f: F) -> &mut T {
-        if let None = self.object {
+        if self.object.is_none() {
             self.object = Some(f());
         }
         unsafe { self.as_mut().unwrap_unchecked() }
@@ -423,7 +423,7 @@ impl <'a, T> TreeOption<'a, T> {
         TreeOption {
             owner:  self.owner,
             tree:   self.tree,
-            object: mem::replace(&mut self.object, None),
+            object: self.object.take(),
             p_life: self.p_life
         }
     }
@@ -484,7 +484,7 @@ impl <'a, T> TreeOption<'a, T> {
 
     /// Marks a failed operation with a panic on the log, and panics the main thread.
     fn fail(&self, msg: &str) -> ! {
-        unsafe { (&mut *self.tree).get_node(self.owner).unwrap_unchecked() }.post(Log::Panic(msg));
+        unsafe { (*self.tree).get_node(self.owner).unwrap_unchecked() }.post(Log::Panic(msg));
         println!("\n[RUST TRACE]");
         panic!();
     }

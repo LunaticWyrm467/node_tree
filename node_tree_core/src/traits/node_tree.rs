@@ -63,6 +63,9 @@ use crate::structs::node_tree_base::NodeTreeBase;
 pub trait NodeTree: Deref<Target = NodeTreeBase> + DerefMut + Any {
 
     /// Sets the `NodeTreeBase` struct.
+    ///
+    /// # Safety
+    /// This should NOT be used manually.
     unsafe fn set_base(&mut self, base: NodeTreeBase);
     
     /// Returns a reference to the `NodeTreeBase` object.

@@ -80,7 +80,7 @@ pub fn ensure_unique_name(name: &str, relative_to: &[String]) -> String {
         }
     }
 
-    if similar_names.len() == 0 {
+    if similar_names.is_empty() {
         return name.to_string();
     }
 
@@ -91,7 +91,7 @@ pub fn ensure_unique_name(name: &str, relative_to: &[String]) -> String {
     // upwards).
     let mut new_value: usize      = given_value.unwrap_or(0);
     let     values:    Vec<usize> = similar_names.iter().map(|n| extract_numerical_suffix(n).unwrap_or(0)).collect(); // If there are no numerical suffixes on similar names,
-    loop {
+    loop { // I dunno why I programmed this as a loop but I'll keep it this way until I figure out why I did so.
         for value in values {
             if new_value == value {
                 new_value += 1;
@@ -128,7 +128,7 @@ pub fn draw_tree(node_tree: &NodeTreeBase, origin: RID, view_up: usize, view_dow
     let mut warnings: Vec<String> = Vec::new();
     let mut panics:   Vec<String> = Vec::new();
 
-    fn walk(tree: &NodeTreeBase, node_rid: RID, prefix: &str, out: &mut String, warnings: &mut Vec<String>, panics: &mut Vec<String>, level: usize) -> () {
+    fn walk(tree: &NodeTreeBase, node_rid: RID, prefix: &str, out: &mut String, warnings: &mut Vec<String>, panics: &mut Vec<String>, level: usize) {
         let     node:  &dyn Node = unsafe { tree.get_node(node_rid).unwrap_unchecked() };
         let mut count: usize     = node.num_children();
 
