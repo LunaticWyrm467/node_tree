@@ -315,6 +315,7 @@ struct Signal {
 
 struct Const {
     attribs: Vec<syn::Attribute>,
+    public:  bool,
     declare: syn::ItemConst
 }
 
@@ -337,6 +338,7 @@ struct Hook {
 
 struct Func {
     attribs: Vec<syn::Attribute>,
+    public:  bool,
     declare: syn::ItemFn
 }
 
@@ -376,10 +378,17 @@ impl Parse for Class {
             // Parse any item attributes.
             let item_attribs: Vec<syn::Attribute> = input.call(syn::Attribute::parse_outer)?;
 
+            // Check if the following statement is publicly visible:
+            let mut is_public: Option<tok::Pub> = None;
+            if input.peek(Token![pub]) {
+                is_public = Some(input.parse::<tok::Pub>()?);
+            }
+
             // Parse a constant:
             if input.peek(Token![const]) {
                 consts.push(Const {
                     attribs: item_attribs,
+                    public:  is_public.is_some(),
                     declare: input.parse()?
                 });
             }
@@ -388,18 +397,13 @@ impl Parse for Class {
             else if input.peek(Token![fn]) {
                 funcs.push(Func {
                     attribs: item_attribs,
+                    public:  is_public.is_some(),
                     declare: input.parse()?
                 });
             }
 
             // Parse a custom statement:
             else {
-
-                // Check if the following statement is publicly visible:
-                let mut is_public: Option<tok::Pub> = None;
-                if input.peek(Token![pub]) {
-                    is_public = Some(input.parse::<tok::Pub>()?);
-                }
 
                 // Parse a let statement:
                 if input.peek(Token![let]) {
@@ -581,10 +585,11 @@ pub fn class(input: TokenStream) -> TokenStream {
     let visibility: TokenStream2 = if public { quote! { pub } } else { TokenStream2::new() };
     
     // Generate the constant fields.
-    let const_fields = consts.iter().map(|Const { attribs, declare }| {
+    let const_fields = consts.iter().map(|Const { attribs, public, declare }| {
+        let visibility: TokenStream2 = if *public { quote! { pub } } else { TokenStream2::new() };
         quote! {
             #(#attribs)*
-            #declare
+            #visibility #declare
         }
     });
 
@@ -677,10 +682,11 @@ pub fn class(input: TokenStream) -> TokenStream {
     });
 
     // Generate the functions.
-    let func_impls = funcs.iter().map(|Func { attribs, declare }| {
+    let func_impls = funcs.iter().map(|Func { attribs, public, declare }| {
+        let visibility: TokenStream2 = if *public { quote! { pub } } else { TokenStream2::new() };
         quote! {
             #(#attribs)*
-            #declare
+            #visibility #declare
         }
     });
 
