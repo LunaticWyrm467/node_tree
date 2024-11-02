@@ -11,12 +11,19 @@ class! {
     
     hk ready(&mut self) {
         let child: Tp<NodeB> = self.get_child(0).unwrap();
+        let this:  Tp<NodeA> = self.this();
+
         connect! { on_event -> child.listener };
+        connect! { on_event -> this.listener  };
     }
     
     hk process(&mut self, _delta: f32) {
         self.on_event.emit(self.count);
         self.count += 1;
+    }
+
+    fn listener(&self, count: &u8) {
+        self.post(Log::Warn(&format!("Count is {count}")));
     }
 }
 
@@ -26,7 +33,8 @@ class! {
 
     fn listener(&self, count: &u8) {
         if *count == 3 {
-            panic!("This was successful!");
+            self.post(Log::Panic("This was successful!"));
+            panic!();
         }
     }
 }

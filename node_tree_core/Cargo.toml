@@ -1,6 +1,6 @@
 [package]
 name = "node_tree"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 rust-version = "1.78"
 
@@ -13,7 +13,7 @@ exclude = [
 keywords    = ["framework", "utility", "gamedev"]
 repository  = "https://github.com/LunaticWyrm467/node_tree"
 description = """
-An extendable system made up of autonomous execution services known as nodes organized in a tree of processes.
+An extendable scene graph made up of autonomous execution services known as nodes organized in a tree of processes.
 Inspired by Godot! 
 """
 license = "MIT OR Apache-2.0"

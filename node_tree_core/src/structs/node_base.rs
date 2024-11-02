@@ -79,6 +79,37 @@ impl NodeBase {
             depth:    0
         }
     }
+    
+    /// Returns a `Tp<T>` pointer for itself.
+    ///
+    /// # Panics
+    /// The correct type (type of `self`) will have to be provided, or this function will panic!
+    /// Panics also if this Node is not connected to a `NodeTree`.
+    pub fn this<S: Node>(&self) -> Tp<S> {
+        if self.tree.is_none() {
+            panic!("Cannot get a tree pointer to a node that is not in a `NodeTree`!");
+        }
+
+        unsafe {
+            Tp::new(self.tree.unwrap_unchecked(), self.rid, self.rid).expect("Called `this` with the wrong type provided")
+        }
+    }
+    
+    /// Returns a `TpDyn` pointer for itself.
+    ///
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn this_dyn(&self) -> TpDyn {
+        if self.tree.is_none() {
+            panic!("Cannot get a tree pointer to a node that is not in a `NodeTree`!");
+        }
+        
+        // SAFETY:
+        // There are no invariants that could result in this being unwrapped on an `Err` value.
+        unsafe {
+            TpDyn::new(self.tree.unwrap_unchecked(), self.rid, self.rid).unwrap_unchecked()
+        }
+    }
 
     /// Gets the name of the node.
     /// Each name is unique within the context of the parent's children vector.
