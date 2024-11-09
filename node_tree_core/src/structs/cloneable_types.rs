@@ -28,6 +28,8 @@
 
 use std::ops::{ Deref, DerefMut };
 
+use crate::traits::serializable::Serializable;
+
 
 /// `Doc<T>` (Default on Clone), simply returns the default type when cloned.
 #[derive(Debug, Default)]
@@ -62,6 +64,16 @@ impl <T: Default> Deref for Doc<T> {
 impl <T: Default> DerefMut for Doc<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl <T: Default + 'static> Serializable for Doc<T> {
+    fn to_value(&self) -> toml::Value {
+        toml::Value::Array(Vec::new())
+    }
+
+    fn from_value(_value: toml::Value) -> Option<Self> where Self: Sized {
+        Some(Doc::default())
     }
 }
 

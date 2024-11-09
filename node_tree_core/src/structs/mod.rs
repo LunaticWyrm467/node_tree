@@ -8,6 +8,4 @@ pub mod tree_option;
 pub mod tree_result;
 pub mod signals;
 pub mod rid;
-
-#[macro_use]
 pub mod logger;

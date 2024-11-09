@@ -30,6 +30,7 @@ use std::{ rc::Rc, sync::Mutex };
 use super::{
     logger::Log,
     node_path::NodePath,
+    node_scene::NodeScene,
     node_tree_base::{ NodeTreeBase, TerminationReason },
     tree_pointer::{ Tp, TpDyn },
     tree_result::TreeResult,
@@ -61,6 +62,7 @@ pub struct NodeBase {
     tree:     Option<*mut dyn NodeTree>,  // Lifetimes are managed by the NodeTree/Nodes
     children: Vec<RID>,
     status:   Rc<Mutex<NodeStatus>>,
+    loaded:   bool,
     depth:    usize   // How far the Node is within the tree.
 }
 
@@ -76,6 +78,7 @@ impl NodeBase {
             tree:     None,
             children: Vec::new(),
             status:   Rc::new(Mutex::new(NodeStatus::Normal)),
+            loaded:   false,
             depth:    0
         }
     }
@@ -156,15 +159,15 @@ impl NodeBase {
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
     pub fn add_child<I: Instanceable>(&mut self, child: I) {
-        child.iterate(|parent, node| {
+        child.iterate(|parent, node, is_owner| {
             if let Some(parent) = parent {
                 unsafe {
                     let parent: &mut dyn Node = &mut *parent;
-                    parent.add_child_from_ptr(node, false, false);
+                    parent.add_child_from_ptr(node, is_owner, false);
                 }
             } else {
                 unsafe {
-                    self.add_child_from_ptr(node, true, false);
+                    self.add_child_from_ptr(node, is_owner, false);
                 }
             }
         });
@@ -226,7 +229,12 @@ impl NodeBase {
         if !ignore_ready {
             unsafe {
                 let child: &mut dyn Node = self.tree_mut().unwrap_unchecked().get_node_mut(child_rid).unwrap_unchecked();
+                if child.has_just_loaded() {
+                    child.loaded();
+                    child.mark_as_final();
+                }
                 child.ready();
+
             }
         }
         
@@ -250,6 +258,9 @@ impl NodeBase {
         if self.tree.is_none() {
             panic!("Cannot add a child to a node that is not in a `NodeTree`!");
         }
+
+        // TODO:
+        // This function could be cleaned up a bit...
         
         // Locate a child node that has the same name. If there is no matching node, then exist
         // early.
@@ -266,7 +277,13 @@ impl NodeBase {
             child_idx,
             child_name,
             connected
-        ): (usize, String, Vec<RID>) = unsafe { child.map(|(idx, child)| (idx, child.name().to_string(), child.top_down(true))).unwrap_unchecked() };
+        ): (usize, String, Vec<RID>) = unsafe {
+            child.map(|(idx, child)| (
+                    idx,
+                    child.name().to_string(),
+                    child.top_down(true)
+            )).unwrap_unchecked()
+        };
 
         self.children.remove(child_idx);
         for (idx, queued_rid) in connected.into_iter().enumerate() { unsafe { 
@@ -592,6 +609,41 @@ impl NodeBase {
         }
     }
 
+    /// Saves this node and all of the nodes below it as a `NodeScene`, which can then be
+    /// reinstanced somewhere else OR be written to the disk.
+    ///
+    /// # Note
+    /// All data in every `NodeBase` will either be destroyed or be represented in the `NodeScene`'s
+    /// representation.
+    ///
+    /// # Panics
+    /// Panics if this Node is not connected to a `NodeTree`.
+    pub fn save_as_branch(&self) -> NodeScene {
+        if self.tree().is_none() {
+            panic!("Cannot free a node that is not a part of a NodeTree! Instead, simply let the unbound Node drop out of scope or use drop()!");
+        }
+        self.save_as_branch_tail()
+    }
+
+    /// The recursive tail function for `save_as_branch`.
+    fn save_as_branch_tail(&self) -> NodeScene {
+        
+        // Create the root `NodeScene` structure using this node as the root owner.
+        let     root:  Box<dyn Node> = unsafe { (&*self.tree.unwrap_unchecked()).get_node(self.rid).unwrap_unchecked() }.clone_as_instance();
+        let mut scene: NodeScene     = NodeScene::new_dyn(root);
+
+        // For each child, append their representation of a node scene.
+        for &child in &self.children {
+            let child: &dyn Node = unsafe { (&*self.tree.unwrap_unchecked()).get_node(child).unwrap_unchecked() };
+            if child.is_owner() {
+                scene.append_as_owner(child.save_as_branch_tail());
+            } else {
+                scene.append(child.save_as_branch_tail());
+            }
+        }
+        scene
+    }
+
     /// Sets the name of the node without checking if the name is unique.
     ///
     /// # Safety
@@ -805,22 +857,37 @@ impl NodeBase {
         self.depth = depth;
     }
 
-    /// Returns true if this node is a stray node with no parent or owner.
-    /// This means that the node is not connected to a tree nor is connected to any other node
-    /// aside from any of its children.
-    pub fn is_stray(&self) -> bool {
-        self.parent.is_none() && self.owner.is_none()
+    /// Returns if this node is a part of the node tree.
+    /// If this is false, then it is expected behaviour that this node does not have an owner or
+    /// parent.
+    pub fn in_tree(&self) -> bool {
+        self.tree().is_some()
     }
 
-    /// Returns true if this node is the root node.
+    /// Returns if this node is not a part of the node tree.
+    /// If this is true, then it is expected behaviour that this node does not have an owner or
+    /// parent.
+    pub fn is_stray(&self) -> bool {
+        self.tree().is_none()
+    }
+
+    /// Returns true if this node is the root node of the node tree.
+    ///
+    /// # Note
+    /// This will return false if the node is not apart of a node tree.
     pub fn is_root(&self) -> bool {
         self.parent.is_none() && self.in_tree()
     }
 
-    /// Returns if this node is a part of the node tree.
-    /// If this is false, then it is expected behaviour that this node does not have an owner.
-    pub fn in_tree(&self) -> bool {
-        self.tree().is_some()
+    /// Returns true if this node is an owner of a scene.
+    ///
+    /// # Note
+    /// This will return false if the node is not apart of a node tree.
+    pub fn is_owner(&self) -> bool {
+        match self.owner {
+            Some(owner) => self.rid == owner,
+            None        => false
+        }
     }
 
     /// Returns the number of children this node has.
@@ -831,6 +898,27 @@ impl NodeBase {
     /// Returns true if this node has no children.
     pub fn childless(&self) -> bool {
         self.num_children() == 0
+    }
+
+    /// Marks this node as just having been recently loaded from the disk.
+    /// 
+    /// # Safety
+    /// This should not be used manually.
+    pub unsafe fn mark_as_loaded(&mut self) {
+        self.loaded = true;
+    }
+
+    /// Marks this node as having been fully loaded.
+    /// 
+    /// # Safety
+    /// This should not be used manually.
+    pub unsafe fn mark_as_final(&mut self) {
+        self.loaded = false;
+    }
+
+    /// Returns if this node has just been loaded from the disk.
+    pub fn has_just_loaded(&self) -> bool {
+        self.loaded
     }
 }
 

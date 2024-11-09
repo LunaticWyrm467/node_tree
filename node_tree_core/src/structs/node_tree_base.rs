@@ -201,10 +201,10 @@ impl NodeTreeBase {
         let mut initialization_history: Vec<RID> = Vec::new();
 
         // Go through each node that needs to be instanced in the scene.
-        scene.iterate(|parent, node| {
+        scene.iterate(|parent, node, is_owner| {
             if let Some(parent) = parent {
                 let parent: &mut dyn Node = unsafe { &mut *parent };
-                let rid:    RID           = parent.add_child_from_ptr(node, false, true);
+                let rid:    RID           = parent.add_child_from_ptr(node, is_owner, true);
 
                 initialization_history.push(rid);
             } else {
@@ -233,6 +233,10 @@ impl NodeTreeBase {
         // Go through the initialization history backwards and run each node's `ready()` function.
         for rid in initialization_history.into_iter().rev() {
             let node: &mut dyn Node = unsafe { self.get_node_mut(rid).unwrap_unchecked() };
+            if node.has_just_loaded() {
+                node.loaded();
+                node.mark_as_final();
+            }
             node.ready();
         }
     }

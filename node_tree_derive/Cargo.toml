@@ -1,6 +1,6 @@
 [package]
 name = "node_tree_derive"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2018"
 
 exclude = [

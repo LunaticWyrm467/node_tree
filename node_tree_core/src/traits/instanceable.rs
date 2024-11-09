@@ -31,6 +31,7 @@ use super::node::Node;
 pub trait Instanceable {
     
     /// Goes through and iterates through all of the nodes that are represented by this collection.
-    /// The arguments passed through are the pointers to the parent (if there is one) and the node.
-    fn iterate<F: FnMut(Option<*mut dyn Node>, *mut dyn Node)>(self, iterator: F);
+    /// The arguments passed through are the pointers to the parent (if there is one), the node
+    /// itself, and whether the node is an owner.
+    fn iterate<F: FnMut(Option<*mut dyn Node>, *mut dyn Node, bool)>(self, iterator: F);
 }

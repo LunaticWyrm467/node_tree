@@ -26,7 +26,7 @@
 //! use node_tree::prelude::*;
 //!
 //!
-//! #[derive(Debug, Clone, Abstract)] // Nodes require `Debug` and `Clone`.
+//! #[derive(Debug, Clone, Abstract, Register)] // Nodes require `Debug` and `Clone`.
 //! pub struct NodeA {
 //!     base: NodeBase   // Required for Nodes.
 //! }
@@ -38,13 +38,29 @@
 //! }
 //!
 //! impl Node for NodeA {
-//!     // feel free to implement `ready()`, `process()`, `terminal()` and/or `process_mode()`
+//!     // feel free to implement `loaded()`, `ready()`, `process()`, `terminal()` and/or `process_mode()`
 //!     // here.
+//! }
+//! ```
+//!
+//! Or with the `class!` macro, you could have an even simpler node declaration:
+//! ```rust
+//! use node_tree::prelude::*;
+//!
+//!
+//! class! {
+//!     pub dec NodeA;
+//!
+//!     // See the class! documentation for how you can implement custom fields, functions, and
+//!     // hooks such as `ready()` or `process()`.
+//!
+//!     // NodeBase initialization and attribute/derive macros are implemented for you!
 //! }
 //! ```
 
 #![allow(clippy::match_like_matches_macro, clippy::should_implement_trait, clippy::inherent_to_string, clippy::single_match)]
 
+pub mod services;
 pub mod structs;
 pub mod traits;
 pub mod utils;
@@ -53,7 +69,7 @@ pub mod prelude {
     //! Contains everything you'll need to create and handle Nodes and NodeTrees.
     //! You'll probably want to import all from this module.
     
-    pub use node_tree_derive::{ Abstract, Tree, scene, connect, class };
+    pub use node_tree_derive::{ Abstract, Register, Tree, scene, connect, class };
     pub use crate::structs::{
         cloneable_types::{ Doc, Eoc, Voc },
         logger::{ LoggerVerbosity, Log },
@@ -69,7 +85,11 @@ pub mod prelude {
     };
     pub use crate::traits::{
         node::{ Node, NodeAbstract },
+        serializable::Serializable,
+        registered::Registered,
         node_tree::NodeTree,
         instanceable::Instanceable
     };
 }
+
+pub use ctor;

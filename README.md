@@ -29,6 +29,12 @@ class! {
     // `new()` function.
     hk _init(given_name: String) {} // Fields are initialized by introducing a variable
                                     // of the same name into scope.
+    
+    /// Runs right before the `ready()` function for a `Node` that was loaded from the disk,
+    /// when said node is added back to the scene tree.
+    hk loaded(&mut self) {
+        // Run set up code here...
+    }
 
     /// Runs once the Node is added to the NodeTree.
     hk ready(&mut self) {
@@ -106,30 +112,46 @@ You may also input a `NodeScene` when initializing a `NodeTree` or adding a chil
 use node_tree::prelude::*;
 
 
-let scene: NodeScene = scene! {
-    NodeA("Root") { // Nodes must have a constructor named `new()` in order for this to work!
-        NodeA("1_Node") {
-            NodeA("2_Node") {
-                NodeA("3_Node"),
-                    NodeA("3_Node"),
-                    NodeA("3_Node")
-            },
-            NodeA("2_Node") {
-                NodeA("3_Node"),
-                NodeA("3_Node"),
-                NodeA("3_Node")
-            },
-            NodeA("2_Node") {
-                NodeA("3_Node"),
-                NodeA("3_Node"),
-                NodeA("3_Node")
-            }
+let child_scene: NodeScene = scene! {
+    NodeA("2_Node", 3) { // Arguments can be fed right in the scene! macro.
+        NodeA("3_Node", 4),
+        NodeA("3_Node", 5),
+        NodeA("3_Node", 6) {
+            NodeA("4_Node", 7),
+            NodeA("4_Node", 8)
         }
+    }
+};
+let parent_scene: NodeScene = scene! {
+    NodeA("1_Node", 2) {
+        $child_scene, // You can use `$` to reference other scenes as children.
+        $child_scene,
+        $child_scene,
+    }
+};
+let scene: NodeScene = scene! {
+    NodeA("Root", 1) {
+        $parent_scene,
+        $parent_scene,
+        $parent_scene,
     }
 };
 
 // Scenes can also be cloned, stored, and reused.
-let _ = scene.clone();
+// 
+// # Note
+// Saved node scenes are stored in .scn files, with a toml format.
+let cloned_scene: NodeScene = scene.clone();
+    cloned_scene.save(Path::new(""), "foo").unwrap(); // Pass the directory and the scene name.
+let loaded_scene: NodeScene = NodeScene::load(Path::new("foo.scn")).unwrap();
+
+// A built in hashing function allows for structural integrity of scenes to be checked.
+// (`NodeScene` has a custom implementation for `std::hash::Hash`.)
+// 
+// # Note
+// This only hashes the tree's layout, note types, and ownership.
+// This does not hash or keep any reference to the node's fields.
+assert_eq!(scene.structural_hash(), loaded_scene.structural_hash());
 ```
 
 ## Logging
@@ -246,4 +268,4 @@ pub struct SpecializedNode {
 - 👪 The ability to manage nodes with `add_child()` and `remove_child()`.
 - 📝 Includes a dynamic logging and error handling system that is deeply integrated with the node framework.
 - 🌲 Allows for the direct referencing of the `NodeTree` through a node's `root()` function.
-- 📜 Includes a method to save (TODO) and handle individual node scenes, such as the handy visual macro `scene!`.
+- 📜 Includes functionality to save, load and handle individual node scenes, such as the handy visual macro `scene!`.

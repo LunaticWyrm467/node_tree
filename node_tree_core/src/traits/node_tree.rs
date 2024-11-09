@@ -22,7 +22,6 @@
 //! Stores important traits required to create a fully-fledged `NodeTree` inherited type.
 //!
 
-
 use std::any::Any;
 use std::ops::{ Deref, DerefMut };
 

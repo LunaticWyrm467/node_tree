@@ -95,6 +95,10 @@ pub fn r#abstract(input: TokenStream) -> TokenStream {
             fn clone_as_instance(&self) -> Box<dyn Node> {
                 Box::new(self.clone())
             }
+
+            fn name_as_type(&self) -> String {
+                std::any::type_name::<Self>().to_string()
+            }
         }
 
         impl std::ops::Deref for #name {
@@ -113,6 +117,90 @@ pub fn r#abstract(input: TokenStream) -> TokenStream {
 
     // Return the generated impl as a TokenStream
     TokenStream::from(expanded)
+}
+
+
+/*
+ * Register
+ */
+
+
+
+#[proc_macro_derive(Register)]
+pub fn derive_registered(input: TokenStream) -> TokenStream {
+    let ast:    DeriveInput             = parse_macro_input!(input as DeriveInput);
+    let name:   &syn::Ident             = &ast.ident;
+    let fields: &punc::Punctuated<_, _> = match &ast.data {
+        syn::Data::Struct(data_struct) => match &data_struct.fields {
+            syn::Fields::Named(syn::FieldsNamed { named, .. }) => named,
+            _ => panic!("Registered trait can only be derived for structs with named fields"),
+        },
+        _ => panic!("Registered trait can only be derived for structs"),
+    };
+
+    let field_names: Vec<_> = fields
+        .iter()
+        .filter(|field| field.ident.as_ref().unwrap() != "base")
+        .map(|field| field.ident.as_ref().unwrap())
+        .collect();
+
+    // Initialize deserialization lines from the fields.
+    let mut type_definitions: Vec<TokenStream2>      = Vec::new();
+    let     type_define_ptr:  *mut Vec<TokenStream2> = &mut type_definitions as *mut _;
+    let     deserialization:  Vec<TokenStream2>      = fields.iter()
+        .filter(|field| field.ident.as_ref().unwrap() != "base")
+        .map(|field| {
+            let field_name: &syn::Ident = field.ident.as_ref().expect("Field must be named");
+            let field_type: &syn::Type  = &field.ty;
+            
+            // Create a unique ident for the type; this is to avoid having to parse colons between
+            // generic arguments and the type.
+            let unique_ident: syn::Ident = syn::Ident::new(&format!("Unique{}", type_definitions.len()), proc_macro::Span::call_site().into());
+            unsafe { &mut *type_define_ptr }.push(quote! {
+                type #unique_ident = #field_type;
+            });
+            
+            quote! {
+                #field_name: #unique_ident::from_value( // TODO: Generic type arguments must be seperated with colons.
+                    owned_state.remove(stringify!(#field_name)).ok_or(format!("corrupt save data; `{}` missing", stringify!(#field_name)))?
+                ).ok_or(format!("corrupt save data; `{}` invalid type", stringify!(#field_name)))?
+            }
+        }).collect(); // We need to collect here so that the unique identities are created here and now!
+
+    let static_name: syn::Ident   = syn::Ident::new(&format!("__static_init_{}", name.to_string().to_lowercase()), name.span());
+    let expanded:    TokenStream2 = quote! {
+        impl Registered for #name {
+            fn save_from_owned(&self) -> node_tree::services::node_registry::FieldMap {
+                let mut map = node_tree::services::node_registry::FieldMap::new();
+                #(
+                    map.insert(
+                        Box::<str>::from(stringify!(#field_names)),
+                        Box::new(self.#field_names.clone()),
+                    );
+                )*
+                map
+            }
+
+            fn load_from_owned(mut owned_state: node_tree::services::node_registry::SFieldMap) -> Result<Self, String> where Self: Sized {
+                #(#type_definitions)*
+                Ok(Self {
+                    base: node_tree::prelude::NodeBase::new(stringify!(#name).to_string()),
+                    #(#deserialization,)*
+                })
+            }
+        }
+        
+        // Runs before main.
+        #[node_tree::ctor::ctor]
+        unsafe fn #static_name() {
+            node_tree::services::node_registry::register_deserializer(std::any::type_name::<#name>().into(), Box::new(|s_field_map| {
+                let node: #name = #name::load_from_owned(s_field_map)?;
+                Ok(Box::new(node) as Box<dyn node_tree::traits::node::Node>)
+            }));
+        };
+    };
+
+    expanded.into()
 }
 
 
@@ -205,61 +293,79 @@ pub fn tree(input: TokenStream) -> TokenStream {
  */
 
 
-struct SceneNode {
-    node_type: syn::Ident,
-    params:    Option<punc::Punctuated<syn::Expr, tok::Comma>>,
-    children:  Vec<SceneNode>,
+enum SceneNode {
+    Link (syn::Ident),
+    Node {
+        node_type: syn::Ident,
+        params:    Option<punc::Punctuated<syn::Expr, tok::Comma>>,
+        children:  Vec<SceneNode>,
+    }
 }
 
 impl Parse for SceneNode {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let node_type: syn::Ident = input.parse()?;
         
-        // Parse optional parameters
-        let params: Option<punc::Punctuated<syn::Expr, tok::Comma>> = if input.peek(syn::token::Paren) {
-            let content;
-            syn::parenthesized!(content in input);
-            Some(punc::Punctuated::parse_terminated(&content)?)
+        // Determine if this is a link or a node.
+        if input.peek(Token![$]) {
+            input.parse::<Token![$]>()?;
+            Ok(SceneNode::Link(input.parse()?))
         } else {
-            None
-        };
-        
-        let mut children: Vec<SceneNode> = Vec::new();
-        if input.peek(syn::token::Brace) {
-            let content;
-            syn::braced!(content in input);
+            let node_type: syn::Ident = input.parse()?;
 
-            while !content.is_empty() {
-                children.push(content.parse()?);
-                if !content.is_empty() {
-                    content.parse::<Token![,]>()?;
+            // Parse optional parameters
+            let params: Option<punc::Punctuated<syn::Expr, tok::Comma>> = if input.peek(syn::token::Paren) {
+                let content;
+                syn::parenthesized!(content in input);
+                Some(punc::Punctuated::parse_terminated(&content)?)
+            } else {
+                None
+            };
+
+            let mut children: Vec<SceneNode> = Vec::new();
+            if input.peek(syn::token::Brace) {
+                let content;
+                syn::braced!(content in input);
+
+                while !content.is_empty() {
+                    children.push(content.parse()?);
+                    if !content.is_empty() {
+                        content.parse::<Token![,]>()?;
+                    }
                 }
             }
+
+            Ok(SceneNode::Node {
+                node_type,
+                params,
+                children,
+            })
         }
-        
-        Ok(SceneNode {
-            node_type,
-            params,
-            children,
-        })
     }
 }
 
 fn generate_node(node: &SceneNode) -> TokenStream2 {
-    let node_type: &syn::Ident  = &node.node_type;
-    let params:    TokenStream2 = match &node.params {
-        Some(p) => quote! { (#p) },
-        None    => quote! { () },
-    };
-    let children: Vec<TokenStream2> = node.children.iter().map(generate_node).collect();
-    
-    quote! {
-        {
-            let mut scene: NodeScene = NodeScene::new(#node_type::new #params);
-            #(
-                scene.append(#children);
-            )*
-            scene
+    match node {
+        SceneNode::Link(with) => {
+            quote! {
+                #with.clone()
+            }
+        },
+        SceneNode::Node { node_type, params, children } => {
+            let params: TokenStream2 = match params {
+                Some(p) => quote! { (#p) },
+                None    => quote! { () },
+            };
+            let children: Vec<TokenStream2> = children.iter().map(generate_node).collect();
+
+            quote! {
+                {
+                    let mut scene: NodeScene = NodeScene::new(#node_type::new #params);
+                    #(
+                        scene.append(#children);
+                    )*
+                    scene
+                }
+            }
         }
     }
 }
@@ -270,7 +376,7 @@ fn generate_node(node: &SceneNode) -> TokenStream2 {
 /// use node_tree::prelude::*;
 ///
 /// let scene: NodeScene = scene! {
-///     RootNode {
+///     OwnerNode {
 ///         NodeWithNoArgs,
 ///         NodeWithOneArg(1),
 ///         NodeWithTwoArgs(1, "two"),
@@ -280,6 +386,16 @@ fn generate_node(node: &SceneNode) -> TokenStream2 {
 ///         }
 ///     }
 /// };
+///
+/// let complex_scene: NodeScene = scene! {
+///     RootNode {
+///         NodeA,
+///         NodeB {
+///             NodeC,
+///             $scene // Links a scene with the name following `$` to that position...
+///         }
+///     }
+/// }
 /// ```
 #[proc_macro]
 pub fn scene(input: TokenStream) -> TokenStream {
@@ -729,7 +845,7 @@ pub fn class(input: TokenStream) -> TokenStream {
 
     let expanded: TokenStream2 = quote! {
         #(#attribs)*
-        #[derive(Debug, Clone, node_tree::prelude::Abstract)]
+        #[derive(Debug, Clone, node_tree::prelude::Abstract, node_tree::prelude::Register)]
         #visibility struct #name {
             base: node_tree::prelude::NodeBase,
             #(#signal_fields,)*

@@ -31,6 +31,7 @@ use std::any::Any;
 use std::ops::{ Deref, DerefMut };
 
 use crate::structs::{ node_base::NodeBase, node_tree_base::{ ProcessMode, TerminationReason } };
+use super::registered::Registered;
 use super::instanceable::Instanceable;
 
 
@@ -67,12 +68,19 @@ pub trait NodeAbstract: Deref<Target = NodeBase> + DerefMut + Any + fmt::Debug {
 
     /// Clones this, returning a boxed clone value.
     fn clone_as_instance(&self) -> Box<dyn Node>;
+
+    /// Gets the full type name of the instance.
+    fn name_as_type(&self) -> String;
 }
 
 
 /// This only holds the node's 'programmable' behaviours.
 /// This must be implemented along with `NodeAbstract` to create a new node.
-pub trait Node: NodeAbstract {
+pub trait Node: NodeAbstract + Registered {
+
+    /// Runs right before the `ready()` function for a `Node` that was loaded in, when said node is
+    /// added to the scene tree.
+    fn loaded(&mut self) {}
     
     /// This function can be overridden to facilitate this node's starting behaviour.
     /// This only runs once after the scene that the node is a part of is fully initialized.
@@ -99,7 +107,7 @@ pub trait Node: NodeAbstract {
 }
 
 impl <N: Node> Instanceable for N {
-    fn iterate<F: FnMut(Option<*mut dyn Node>, *mut dyn Node)>(self, mut iterator: F) {
-        iterator(None, Box::into_raw(self.to_dyn_box()));
+    fn iterate<F: FnMut(Option<*mut dyn Node>, *mut dyn Node, bool)>(self, mut iterator: F) {
+        iterator(None, Box::into_raw(self.to_dyn_box()), false);
     }
 }
