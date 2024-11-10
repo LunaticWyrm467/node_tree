@@ -260,7 +260,7 @@ pub struct SpecializedNode {
 ```
 
 ## Supported Features
-- `glam` - Enables support with glam's types when it comes with saving and loading.
+- `glam` - Enables support with glam's (v0.29.*) types when it comes with saving and loading.
 
 ## Highlights
 - 🏗️ An easy abstraction framework for different processes to communicate and interact with each other in a scalable manner. Inspired by Godot!

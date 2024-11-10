@@ -259,7 +259,10 @@ pub struct SpecializedNode {
 }
 ```
 
-## Features
+## Supported Features
+- `glam` - Enables support with glam's (v0.29.*) types when it comes with saving and loading.
+
+## Highlights
 - 🏗️ An easy abstraction framework for different processes to communicate and interact with each other in a scalable manner. Inspired by Godot!
 - ⏯️ The ability to `pause()` and `unpause()` the `NodeTree`, and fine tune individual `Node` behaviours for when a tree is paused/unpaused.
 - 📡 Various methods to communicate with other nodes, such as `owner()`, `parent()`, `get_child()`, `children()`, and `get_node()`, as well as methods to automate the process such as signals.
