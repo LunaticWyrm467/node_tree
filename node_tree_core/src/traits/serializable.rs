@@ -25,12 +25,18 @@
 //! 
 
 use std::{
-    collections::HashMap,
+    collections::{ BTreeMap, BTreeSet, HashMap, HashSet },
+    mem,
     ops::Deref,
-    mem
+    path,
+    str::FromStr,
+    time,
+    net,
+    hash,
+    cmp
 };
 
-use toml::value::Datetime;
+use toml_edit as toml;
 
 use crate::structs::node_path::NodePath;
 
@@ -48,7 +54,7 @@ pub trait Serializable {
 
 impl Serializable for () {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(Vec::new())
+        toml::Value::Array(toml::Array::new())
     }
 
     fn from_value(_value: toml::Value) -> Option<Self> where Self: Sized {
@@ -63,7 +69,7 @@ impl Serializable for bool {
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::Boolean(b) => Some(b),
+            toml::Value::Boolean(b) => Some(b.into_value()),
             _                       => None
         }
     }
@@ -76,7 +82,7 @@ impl Serializable for u8 {
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::Integer(i) => Some(i as u8),
+            toml::Value::Integer(i) => Some(i.into_value() as u8),
             _                       => None
         }
     }
@@ -88,7 +94,7 @@ impl Serializable for u16 {
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::Integer(i) => Some(i as u16),
+            toml::Value::Integer(i) => Some(i.into_value() as u16),
             _                       => None
         }
     }
@@ -100,7 +106,7 @@ impl Serializable for u32 {
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::Integer(i) => Some(i as u32),
+            toml::Value::Integer(i) => Some(i.into_value() as u32),
             _                       => None
         }
     }
@@ -112,7 +118,7 @@ impl Serializable for u64 {
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::Integer(i) => Some(i as u64),
+            toml::Value::Integer(i) => Some(i.into_value() as u64),
             _                       => None
         }
     }
@@ -124,7 +130,7 @@ impl Serializable for i8 {
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::Integer(i) => Some(i as i8),
+            toml::Value::Integer(i) => Some(i.into_value() as i8),
             _                       => None
         }
     }
@@ -136,7 +142,7 @@ impl Serializable for i16 {
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::Integer(i) => Some(i as i16),
+            toml::Value::Integer(i) => Some(i.into_value() as i16),
             _                       => None
         }
     }
@@ -148,20 +154,44 @@ impl Serializable for i32 {
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::Integer(i) => Some(i as i32),
+            toml::Value::Integer(i) => Some(i.into_value() as i32),
             _                       => None
         }
     }
 }
 impl Serializable for i64 {
     fn to_value(&self) -> toml::Value {
-        (*self as i64).into()
+        (*self).into()
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::Integer(i) => Some(i as i64),
+            toml::Value::Integer(i) => Some(i.into_value()),
             _                       => None
+        }
+    }
+}
+impl Serializable for f32 {
+    fn to_value(&self) -> toml::Value {
+        (*self as f64).into()
+    }
+
+    fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
+        match value {
+            toml::Value::Float(i) => Some(i.into_value() as f32),
+            _                     => None
+        }
+    }
+}
+impl Serializable for f64 {
+    fn to_value(&self) -> toml::Value {
+        (*self).into()
+    }
+
+    fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
+        match value {
+            toml::Value::Float(i) => Some(i.into_value()),
+            _                     => None
         }
     }
 }
@@ -174,6 +204,7 @@ impl Serializable for char {
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
             toml::Value::String(c) => {
+                let c: String = c.into_value();
                 if c.len() != 1 {
                     None
                 } else {
@@ -191,7 +222,7 @@ impl Serializable for String {
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::String(s) => Some(s),
+            toml::Value::String(s) => Some(s.into_value()),
             _                      => None
         }
     }
@@ -205,23 +236,92 @@ impl Serializable for NodePath {
         String::from_value(value).map(|str| NodePath::from_str(&str))
     }
 }
-
-impl Serializable for Datetime {
+impl Serializable for path::PathBuf {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Datetime(self.to_owned())
+        self.to_str().expect("Invalid unicode").to_owned().to_value()
+    }
+
+    fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
+        path::PathBuf::from_str(&String::from_value(value)?).ok()
+    }
+}
+
+impl Serializable for net::Ipv4Addr {
+    fn to_value(&self) -> toml::Value {
+        self.to_string().to_value()
+    }
+
+    fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
+        net::Ipv4Addr::from_str(&String::from_value(value)?).ok()
+    }
+}
+impl Serializable for net::Ipv6Addr {
+    fn to_value(&self) -> toml::Value {
+        self.to_string().to_value()
+    }
+
+    fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
+        net::Ipv6Addr::from_str(&String::from_value(value)?).ok()
+    }
+}
+impl Serializable for net::IpAddr {
+    fn to_value(&self) -> toml::Value {
+        self.to_string().to_value()
+    }
+
+    fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
+        net::IpAddr::from_str(&String::from_value(value)?).ok()
+    }
+}
+
+impl Serializable for time::Duration {
+    fn to_value(&self) -> toml::Value {
+        self.as_secs_f64().to_value()
+    }
+
+    fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
+        Some(time::Duration::from_secs_f64(value.as_float()?))
+    }
+}
+impl Serializable for toml::Datetime {
+    fn to_value(&self) -> toml::Value {
+        toml::Value::Datetime(toml::Formatted::new(self.to_owned()))
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::Datetime(dt) => Some(dt),
+            toml::Value::Datetime(dt) => Some(dt.into_value()),
             _                         => None
         }
     }
 }
 
+impl <T: Serializable> Serializable for Option<T> {
+    fn to_value(&self) -> toml::Value {
+        let map: toml::InlineTable = match self {
+            Some(value) => toml::InlineTable::from_iter(vec![("value".to_string(), value.to_value())]),
+            None        => toml::InlineTable::new()
+        };
+
+        map.into()
+    }
+
+    fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
+        match value {
+            toml::Value::InlineTable(mut table) => match table.remove("value") {
+                Some(value) => Some(Some(T::from_value(value)?)),
+                None        => Some(None)
+            },
+            _ => None
+        }
+        
+    }
+}
+
 impl <T: Serializable> Serializable for Vec<T> {
     fn to_value(&self) -> toml::Value {
-        self.iter().map(|v| (v.to_owned()).to_value()).collect::<Vec<toml::Value>>().into()
+        let arr: toml::Array = toml::Array::from_iter(self.iter().map(|v| (v.to_owned()).to_value()));
+        arr.into()
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
@@ -232,14 +332,27 @@ impl <T: Serializable> Serializable for Vec<T> {
     }
 }
 
-impl <V: Serializable> Serializable for HashMap<char, V> {
+impl <T: Serializable + hash::Hash + cmp::Eq> Serializable for HashSet<T> {
     fn to_value(&self) -> toml::Value {
-        self.iter().map(|(k, v)| (k.to_string(), (v.to_owned()).to_value())).collect::<toml::Table>().into()
+        let arr: toml::Array = toml::Array::from_iter(self.iter().map(|x| x.to_value()));
+        toml::Value::Array(arr)
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::Table(table) => {
+            toml::Value::Array(arr) => arr.into_iter().map(|x| T::from_value(x)).collect::<Option<HashSet<T>>>(),
+            _                       => None
+        }
+    }
+}
+impl <V: Serializable> Serializable for HashMap<char, V> {
+    fn to_value(&self) -> toml::Value {
+        self.iter().map(|(k, v)| (k.to_string(), (v.to_owned()).to_value())).collect::<toml::InlineTable>().into()
+    }
+
+    fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
+        match value {
+            toml::Value::InlineTable(table) => {
                 table.into_iter().map(|(key, value)| {
                     if key.len() != 1 {
                         None
@@ -255,18 +368,70 @@ impl <V: Serializable> Serializable for HashMap<char, V> {
         }
     }
 }
-
 impl <V: Serializable> Serializable for HashMap<String, V> {
     fn to_value(&self) -> toml::Value {
-        self.iter().map(|(k, v)| (k.to_owned(), (v.to_owned()).to_value())).collect::<toml::Table>().into()
+        self.iter().map(|(k, v)| (k.to_owned(), (v.to_owned()).to_value())).collect::<toml::InlineTable>().into()
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
-            toml::Value::Table(table) => {
+            toml::Value::InlineTable(table) => {
                 table.into_iter()
-                    .map(|(key, value)| V::from_value(value).map(|value| (key, value)))
+                    .map(|(key, value)| V::from_value(value).map(|value| (key.to_string(), value)))
                     .collect::<Option<HashMap<String, V>>>()
+            },
+            _ => None
+        }
+    }
+}
+
+impl <T: Serializable + cmp::Ord> Serializable for BTreeSet<T> {
+    fn to_value(&self) -> toml::Value {
+        let arr: toml::Array = toml::Array::from_iter(self.iter().map(|x| x.to_value()));
+        toml::Value::Array(arr)
+    }
+
+    fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
+        match value {
+            toml::Value::Array(arr) => arr.into_iter().map(|x| T::from_value(x)).collect::<Option<BTreeSet<T>>>(),
+            _                       => None
+        }
+    }
+}
+impl <V: Serializable> Serializable for BTreeMap<char, V> {
+    fn to_value(&self) -> toml::Value {
+        self.iter().map(|(k, v)| (k.to_string(), (v.to_owned()).to_value())).collect::<toml::InlineTable>().into()
+    }
+
+    fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
+        match value {
+            toml::Value::InlineTable(table) => {
+                table.into_iter().map(|(key, value)| {
+                    if key.len() != 1 {
+                        None
+                    } else {
+                        match V::from_value(value) {
+                            Some(value) => Some((key.chars().collect::<Vec<_>>()[0], value)),
+                            None        => None
+                        }
+                    }
+                }).collect::<Option<BTreeMap<char, V>>>()
+            },
+            _ => None
+        }
+    }
+}
+impl <V: Serializable> Serializable for BTreeMap<String, V> {
+    fn to_value(&self) -> toml::Value {
+        self.iter().map(|(k, v)| (k.to_owned(), (v.to_owned()).to_value())).collect::<toml::InlineTable>().into()
+    }
+
+    fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
+        match value {
+            toml::Value::InlineTable(table) => {
+                table.into_iter()
+                    .map(|(key, value)| V::from_value(value).map(|value| (key.to_string(), value)))
+                    .collect::<Option<BTreeMap<String, V>>>()
             },
             _ => None
         }
@@ -338,13 +503,13 @@ impl <const N: usize, T: Serializable> Serializable for [T; N] {
 
 impl <A: Serializable> Serializable for (A,) {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(vec![self.0.to_value()])
+        toml::Value::Array(toml::Array::from_iter(vec![self.0.to_value()]))
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
             toml::Value::Array(arr) => {
-                if let [a] = arr.as_slice() {
+                if let [a] = arr.into_iter().collect::<Vec<_>>().as_slice() {
                     return Some((A::from_value(a.to_owned())?,))
                 }
                 None
@@ -355,13 +520,13 @@ impl <A: Serializable> Serializable for (A,) {
 }
 impl <A: Serializable, B: Serializable> Serializable for (A, B) {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(vec![self.0.to_value(), self.1.to_value()])
+        toml::Value::Array(toml::Array::from_iter(vec![self.0.to_value(), self.1.to_value()]))
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
             toml::Value::Array(arr) => {
-                if let [a, b] = arr.as_slice() {
+                if let [a, b] = arr.into_iter().collect::<Vec<_>>().as_slice() {
                     return Some((A::from_value(a.to_owned())?, B::from_value(b.to_owned())?))
                 }
                 None
@@ -372,13 +537,13 @@ impl <A: Serializable, B: Serializable> Serializable for (A, B) {
 }
 impl <A: Serializable, B: Serializable, C: Serializable> Serializable for (A, B, C) {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(vec![self.0.to_value(), self.1.to_value(), self.2.to_value()])
+        toml::Value::Array(toml::Array::from_iter(vec![self.0.to_value(), self.1.to_value(), self.2.to_value()]))
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
             toml::Value::Array(arr) => {
-                if let [a, b, c] = arr.as_slice() {
+                if let [a, b, c] = arr.into_iter().collect::<Vec<_>>().as_slice() {
                     return Some((A::from_value(a.to_owned())?, B::from_value(b.to_owned())?, C::from_value(c.to_owned())?))
                 }
                 None
@@ -389,13 +554,13 @@ impl <A: Serializable, B: Serializable, C: Serializable> Serializable for (A, B,
 }
 impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable> Serializable for (A, B, C, D) {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(vec![self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value()])
+        toml::Value::Array(toml::Array::from_iter(vec![self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value()]))
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
             toml::Value::Array(arr) => {
-                if let [a, b, c, d] = arr.as_slice() {
+                if let [a, b, c, d] = arr.into_iter().collect::<Vec<_>>().as_slice() {
                     return Some((A::from_value(a.to_owned())?, B::from_value(b.to_owned())?, C::from_value(c.to_owned())?, D::from_value(d.to_owned())?))
                 }
                 None
@@ -406,13 +571,13 @@ impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable> Serial
 }
 impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Serializable> Serializable for (A, B, C, D, E) {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(vec![self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value()])
+        toml::Value::Array(toml::Array::from_iter(vec![self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value()]))
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
             toml::Value::Array(arr) => {
-                if let [a, b, c, d, e] = arr.as_slice() {
+                if let [a, b, c, d, e] = arr.into_iter().collect::<Vec<_>>().as_slice() {
                     return Some((A::from_value(a.to_owned())?, B::from_value(b.to_owned())?, C::from_value(c.to_owned())?, D::from_value(d.to_owned())?, E::from_value(e.to_owned())?))
                 }
                 None
@@ -424,16 +589,16 @@ impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Ser
 impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Serializable,
       F: Serializable> Serializable for (A, B, C, D, E, F) {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(vec![
+        toml::Value::Array(toml::Array::from_iter(vec![
             self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value(),
             self.5.to_value()
-        ])
+        ]))
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
             toml::Value::Array(arr) => {
-                if let [a, b, c, d, e, f] = arr.as_slice() {
+                if let [a, b, c, d, e, f] = arr.into_iter().collect::<Vec<_>>().as_slice() {
                     return Some((
                             A::from_value(a.to_owned())?, B::from_value(b.to_owned())?, C::from_value(c.to_owned())?, D::from_value(d.to_owned())?, E::from_value(e.to_owned())?,
                             F::from_value(f.to_owned())?
@@ -448,16 +613,16 @@ impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Ser
 impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Serializable,
       F: Serializable, G: Serializable> Serializable for (A, B, C, D, E, F, G) {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(vec![
+        toml::Value::Array(toml::Array::from_iter(vec![
             self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value(),
             self.5.to_value(), self.6.to_value()
-        ])
+        ]))
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
             toml::Value::Array(arr) => {
-                if let [a, b, c, d, e, f, g] = arr.as_slice() {
+                if let [a, b, c, d, e, f, g] = arr.into_iter().collect::<Vec<_>>().as_slice() {
                     return Some((
                             A::from_value(a.to_owned())?, B::from_value(b.to_owned())?, C::from_value(c.to_owned())?, D::from_value(d.to_owned())?, E::from_value(e.to_owned())?,
                             F::from_value(f.to_owned())?, G::from_value(g.to_owned())?
@@ -472,16 +637,16 @@ impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Ser
 impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Serializable,
       F: Serializable, G: Serializable, H: Serializable> Serializable for (A, B, C, D, E, F, G, H) {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(vec![
+        toml::Value::Array(toml::Array::from_iter(vec![
             self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value(),
             self.5.to_value(), self.6.to_value(), self.7.to_value()
-        ])
+        ]))
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
             toml::Value::Array(arr) => {
-                if let [a, b, c, d, e, f, g, h] = arr.as_slice() {
+                if let [a, b, c, d, e, f, g, h] = arr.into_iter().collect::<Vec<_>>().as_slice() {
                     return Some((
                             A::from_value(a.to_owned())?, B::from_value(b.to_owned())?, C::from_value(c.to_owned())?, D::from_value(d.to_owned())?, E::from_value(e.to_owned())?,
                             F::from_value(f.to_owned())?, G::from_value(g.to_owned())?, H::from_value(h.to_owned())?
@@ -496,16 +661,16 @@ impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Ser
 impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Serializable,
       F: Serializable, G: Serializable, H: Serializable, I: Serializable> Serializable for (A, B, C, D, E, F, G, H, I) {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(vec![
+        toml::Value::Array(toml::Array::from_iter(vec![
             self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value(),
             self.5.to_value(), self.6.to_value(), self.7.to_value(), self.8.to_value()
-        ])
+        ]))
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
             toml::Value::Array(arr) => {
-                if let [a, b, c, d, e, f, g, h, i] = arr.as_slice() {
+                if let [a, b, c, d, e, f, g, h, i] = arr.into_iter().collect::<Vec<_>>().as_slice() {
                     return Some((
                             A::from_value(a.to_owned())?, B::from_value(b.to_owned())?, C::from_value(c.to_owned())?, D::from_value(d.to_owned())?, E::from_value(e.to_owned())?,
                             F::from_value(f.to_owned())?, G::from_value(g.to_owned())?, H::from_value(h.to_owned())?, I::from_value(i.to_owned())?
@@ -520,16 +685,16 @@ impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Ser
 impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Serializable,
       F: Serializable, G: Serializable, H: Serializable, I: Serializable, J: Serializable> Serializable for (A, B, C, D, E, F, G, H, I, J) {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(vec![
+        toml::Value::Array(toml::Array::from_iter(vec![
             self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value(),
             self.5.to_value(), self.6.to_value(), self.7.to_value(), self.8.to_value(), self.9.to_value()
-        ])
+        ]))
     }
 
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized {
         match value {
             toml::Value::Array(arr) => {
-                if let [a, b, c, d, e, f, g, h, i, j] = arr.as_slice() {
+                if let [a, b, c, d, e, f, g, h, i, j] = arr.into_iter().collect::<Vec<_>>().as_slice() {
                     return Some((
                             A::from_value(a.to_owned())?, B::from_value(b.to_owned())?, C::from_value(c.to_owned())?, D::from_value(d.to_owned())?, E::from_value(e.to_owned())?,
                             F::from_value(f.to_owned())?, G::from_value(g.to_owned())?, H::from_value(h.to_owned())?, I::from_value(i.to_owned())?, J::from_value(j.to_owned())?

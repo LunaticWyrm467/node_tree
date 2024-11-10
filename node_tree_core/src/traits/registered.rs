@@ -37,6 +37,6 @@ pub trait Registered {
     /// Loads a `Node` from a set of owned data in a `toml` compatible format.
     fn load_from_owned(owned_state: SFieldMap) -> Result<Self, String> where Self: Sized; /* Required for V-Table Initialization */
 
-    /// Saves a `Node`'s owned state to a `FieldMap`, which is compatible with `Serde`.
+    /// Saves a `Node`'s owned state to a `FieldMap`, which is compatible with `toml_edit`.
     fn save_from_owned(&self) -> FieldMap;
 }

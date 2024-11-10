@@ -30,7 +30,7 @@ use std::collections::HashMap;
 
 use dashmap::DashMap;
 
-pub use toml::Value;
+pub use toml_edit::Value;
 
 use crate::traits::node::Node;
 use crate::traits::serializable::Serializable;

@@ -28,10 +28,16 @@
 
 use std::ops::{ Deref, DerefMut };
 
+use toml_edit as toml;
+
 use crate::traits::serializable::Serializable;
 
 
 /// `Doc<T>` (Default on Clone), simply returns the default type when cloned.
+///
+/// # Note
+/// This automatically implements `Serializable`, and will always yield the default value when
+/// serialized.
 #[derive(Debug, Default)]
 pub struct Doc<T: Default>(T);
 
@@ -69,7 +75,7 @@ impl <T: Default> DerefMut for Doc<T> {
 
 impl <T: Default + 'static> Serializable for Doc<T> {
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(Vec::new())
+        toml::Value::Array(toml::Array::new())
     }
 
     fn from_value(_value: toml::Value) -> Option<Self> where Self: Sized {

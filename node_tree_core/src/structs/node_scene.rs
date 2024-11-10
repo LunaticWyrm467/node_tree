@@ -30,8 +30,7 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 use std::hash::{ self, Hash, Hasher };
 
-use serde::{ Serialize, Deserialize };
-use toml::Table;
+use toml_edit as toml;
 
 use crate::structs::rid::RID;
 use crate::traits::{ node::Node, instanceable::Instanceable };
@@ -43,18 +42,6 @@ use crate::services::node_registry::{ self, FieldMap, SFieldMap };
  *      Struct
  */
 
-
-/// Used to represent a node's data.
-///
-/// # Note
-/// The `ID` is stored as the key to this data, not in the data itself.
-#[derive(Serialize, Deserialize)]
-struct NodeData {
-    type_name: String,
-    parent:    Option<RID>,
-    is_owner:  bool,
-    fields:    Table
-}
 
 /// A recursive structure that allows for the storage, saving, and loading of a dormant scene of nodes.
 /// The root node is what every node in the scene will have its owner set to.
@@ -102,26 +89,34 @@ impl NodeScene {
         drop(file);
         
         // Attempt to parse the file as a table.
-        let document: String = String::from_utf8(buffer).map_err(|err| format!("{err}"))?;
-        let document: Table  = toml::from_str(&document).map_err(|err| format!("{err}"))?;
+        let document: String            = String::from_utf8(buffer).map_err(|err| format!("{err}"))?;
+        let document: toml::DocumentMut = document.parse().map_err(|err| format!("{err}"))?;
         
         // Go through each node and deserialize it:
         let mut node_scene: Option<NodeScene>        = None;
         let mut traversal:  HashMap<RID, Vec<usize>> = HashMap::new(); // Cache used for quick traversal.
 
-        for (key, node_data) in document {
-            
-            // Deserialize the node data back into its respective type.
-            let NodeData {
-                type_name,
-                is_owner,
-                parent,
-                fields
-            } = toml::from_str(&toml::to_string(&node_data).unwrap()).unwrap();
+        for (key, node_data) in document.iter() {
 
-            let node_fields: SFieldMap     = fields.into_iter().map(|(key, value)| (key.into(), value)).collect();
-            let node:        Box<dyn Node> = node_registry::deserialize(&type_name, node_fields)?;
-            let local_rid:   RID           = key.split_once('_')
+            // Deserialize the node's metadata.
+            let node_data: &toml::Table       = node_data.as_table().ok_or(format!("Failed to parse {}'s data", key))?;
+            let metadata:  &toml::InlineTable = node_data.get("metadata").map(|nd| nd.as_inline_table()).flatten().ok_or(format!("Failed to parse {}'s metadata", key))?;
+            let type_name: String             = metadata.get("type_name").map(|tn| tn.as_str().map(|s| s.to_string())).flatten().ok_or(format!("Failed to parse {}'s type name", key))?;
+            let is_owner:  bool               = metadata.get("is_owner").map(|tn| tn.as_bool()).flatten().ok_or(format!("Failed to parse {}'s ownership status", key))?;
+            let parent:    Option<RID>        = metadata.get("parent").map(|p| p.as_integer().map(|rid| rid as RID)).flatten();
+
+            // Deserialize the node data back into its respective type.
+            let node_fields: Option<SFieldMap> = node_data.into_iter()
+                .filter(|(field, _)| *field != "metadata")
+                .map(|(field, value)| {
+                    match value {
+                        toml::Item::Value(value) => Some((field.into(), value.to_owned())),
+                        _                        => None
+                    }
+                }).collect();
+
+            let node:      Box<dyn Node> = node_registry::deserialize(&type_name, node_fields.ok_or("Could not parse node fields".to_string())?)?;
+            let local_rid: RID           = key.split_once('_')
                 .ok_or("Failed to parse Node key".to_string())?
                 .1.parse()
                 .map_err(|err| format!("{err}"))?;
@@ -188,7 +183,7 @@ impl NodeScene {
     pub fn save(&self, path: &Path, name: &str) -> Result<(), String> {
 
         // Constuct a buffer for the toml format.
-        let mut document: Table = Table::new();
+        let mut document: toml::DocumentMut = toml::DocumentMut::new();
 
         // Go through each node and serialize it:
         self.update_internal(0);
@@ -197,22 +192,22 @@ impl NodeScene {
             let parent: Option<&dyn Node> = parent.map(|x| unsafe { &*x });
             
             // Format the metadata.
-            let mut node_data: NodeData = NodeData {
-                type_name: node.name_as_type(),
-                is_owner,
-                parent:    parent.map(|p| p.rid()),
-                fields:    Table::new()
-            };
+            let node_key: String = format!("Node_{}", node.rid());
+            
+            document[&node_key]                          = toml::Item::Table(toml::Table::new());
+            document[&node_key]["metadata"]              = toml::InlineTable::new().into();
+            document[&node_key]["metadata"]["type_name"] = node.name_as_type().into();
+            document[&node_key]["metadata"]["is_owner"]  = is_owner.into();
+
+            if let Some(parent_rid) = parent.map(|p| p.rid()) {
+                document[&node_key]["metadata"]["parent"] = (parent_rid as i64).into();
+            }
 
             // Save the fields.
             let node_fields: FieldMap = node.save_from_owned();
             for (field_name, value) in node_fields {
-                node_data.fields.insert(field_name.to_string(), value.to_value());
+                document[&node_key][&field_name.to_string()] = toml::Item::Value(value.to_value());
             }
-            
-            // Serialize this as a table and insert it into a document.
-            let node_table: Table = toml::from_str(&toml::to_string(&node_data).unwrap()).unwrap();
-            document.insert(format!("Node_{}", node.rid()), node_table.into());
         });
         
         // Write the saved scene data to disk.
