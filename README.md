@@ -22,6 +22,11 @@ class! {
 
     // Fields are declared as such:
     let given_name: String;
+
+    // Fields can have custom attributes.
+    default let default_field:  u8; // Initialized as its default value.
+    export  let saveable_field: String; // Can also be `export default` if the value supports it.
+    unique  let unique_field:   *mut c_void; // Value that is not cloned with the node.
     
     // Overrideable system functions are known as hooks and start with `hk`.
 
@@ -33,7 +38,7 @@ class! {
     /// Runs right before the `ready()` function for a `Node` that was loaded from the disk,
     /// when said node is added back to the scene tree.
     hk loaded(&mut self) {
-        // Run set up code here...
+        // Run set up code here to reinitialize unique or non-export/default fields...
     }
 
     /// Runs once the Node is added to the NodeTree.
