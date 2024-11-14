@@ -43,6 +43,10 @@ use crate::services::node_registry::{ self, FieldMap, SFieldMap };
  */
 
 
+/// A comment placed at the root of every .scn file.
+const SCN_COMMENT: &str = "# This scene file was generated automatically via node_tree.\n# If you wish to modify it, ensure that children are in front of their parents.\n\n";
+
+
 /// A recursive structure that allows for the storage, saving, and loading of a dormant scene of nodes.
 /// The root node is what every node in the scene will have its owner set to.
 #[derive(Debug)]
@@ -71,25 +75,8 @@ impl NodeScene {
         }
     }
 
-    /// Loads a `NodeScene` from a `.scn` file.
-    pub fn load(path: &Path) -> Result<Self, String> {
-        
-        // Ensure that the file described is a scene file.
-        match path.extension().map(|ext| ext.to_str()).flatten() {
-            Some("scn") => (),
-            Some(_)     => return Err("Attempted to load a file with an extension differing from .scn".to_string()),
-            None        => return Err("Path did not contain a valid file extension".to_string())
-        }
-        
-        // Attempt to load the file and write its contents to a buffer.
-        let mut file:   fs::File = fs::File::open(path).map_err(|err| format!("{err}"))?;
-        let mut buffer: Vec<u8>  = Vec::new();
-        
-        file.read_to_end(&mut buffer).map_err(|err| format!("{err}"))?;
-        drop(file);
-        
-        // Attempt to parse the file as a table.
-        let document: String            = String::from_utf8(buffer).map_err(|err| format!("{err}"))?;
+    /// Loads a `NodeScene` from a string.
+    pub fn load_from_str(document: &str) -> Result<Self, String> {
         let document: toml::DocumentMut = document.parse().map_err(|err| format!("{err}"))?;
         
         // Go through each node and deserialize it:
@@ -115,11 +102,16 @@ impl NodeScene {
                     }
                 }).collect();
 
-            let node:      Box<dyn Node> = node_registry::deserialize(&type_name, node_fields.ok_or("Could not parse node fields".to_string())?)?;
-            let local_rid: RID           = key.split_once('_')
-                .ok_or("Failed to parse Node key".to_string())?
-                .1.parse()
-                .map_err(|err| format!("{err}"))?;
+            let mut node: Box<dyn Node> = node_registry::deserialize(&type_name, node_fields.ok_or("Could not parse node fields".to_string())?)?;
+            let (name, local_rid): (&str, RID) = key.split_once('_')
+                .map(|(name, local_rid)| local_rid.parse().map(|local_rid| (name, local_rid)).map_err(|err| format!("{err}")))
+                .ok_or("Failed to parse Node key".to_string())??;
+            
+            unsafe {
+                node.set_name_unchecked(name);
+                node.set_rid(local_rid);
+            }
+
             
             // Append the node to the scene.
             match node_scene.as_mut() {
@@ -151,7 +143,9 @@ impl NodeScene {
                             
                             // Funny pointer traversal
                             let mut cursor: Option<*mut NodeScene> = None;
+                            let mut path:   Vec<usize>             = Vec::new();
                             for &segment in cached_path {
+                                path.push(segment);
                                 match cursor {
                                     Some(_) => cursor = cursor.map(|scene_ptr| &mut (unsafe { &mut *scene_ptr }.children[segment]) as *mut _),
                                     None    => cursor = Some(&mut node_scene.children[segment])
@@ -168,6 +162,9 @@ impl NodeScene {
                             } else {
                                 found_parent.append(new_scene);
                             }
+                            
+                            path.push(found_parent.children.len() - 1);
+                            traversal.insert(local_rid, path);
                         },
                         None => return Err("Child was declared ahead of parent in the .scn file".to_string())
                     }
@@ -178,9 +175,31 @@ impl NodeScene {
 
         node_scene.ok_or("No root node found in scene".to_string())
     }
-    
-    /// Saves a `NodeScene` to a `toml` like `.scn` file.
-    pub fn save(&self, path: &Path, name: &str) -> Result<(), String> {
+
+    /// Loads a `NodeScene` from a `.scn` file.
+    pub fn load(path: &Path) -> Result<Self, String> {
+        
+        // Ensure that the file described is a scene file.
+        match path.extension().map(|ext| ext.to_str()).flatten() {
+            Some("scn") => (),
+            Some(_)     => return Err("Attempted to load a file with an extension differing from .scn".to_string()),
+            None        => return Err("Path did not contain a valid file extension".to_string())
+        }
+        
+        // Attempt to load the file and write its contents to a buffer.
+        let mut file:   fs::File = fs::File::open(path).map_err(|err| format!("{err}"))?;
+        let mut buffer: Vec<u8>  = Vec::new();
+        
+        file.read_to_end(&mut buffer).map_err(|err| format!("{err}"))?;
+        drop(file);
+        
+        // Attempt to parse the file as a table.
+        let document: String = String::from_utf8(buffer).map_err(|err| format!("{err}"))?;
+        Self::load_from_str(&document)
+    }
+
+    /// Saves a `NodeScene` to a string.
+    pub fn save_to_str(&self) -> Result<String, String> {
 
         // Constuct a buffer for the toml format.
         let mut document: toml::DocumentMut = toml::DocumentMut::new();
@@ -192,7 +211,7 @@ impl NodeScene {
             let parent: Option<&dyn Node> = parent.map(|x| unsafe { &*x });
             
             // Format the metadata.
-            let node_key: String = format!("Node_{}", node.rid());
+            let node_key: String = format!("{}_{}", node.name(), node.rid());
             
             document[&node_key]                          = toml::Item::Table(toml::Table::new());
             document[&node_key]["metadata"]              = toml::InlineTable::new().into();
@@ -206,16 +225,26 @@ impl NodeScene {
             // Save the fields.
             let node_fields: FieldMap = node.save_from_owned();
             for (field_name, value) in node_fields {
+                if unsafe { value.is_ghost_export() } {
+                    continue;
+                }
                 document[&node_key][&field_name.to_string()] = toml::Item::Value(value.to_value());
             }
         });
+
+        let mut buffer: String = SCN_COMMENT.to_string();
+                buffer        += &document.to_string();
+        Ok(buffer)
+    }
+    
+    /// Saves a `NodeScene` to a `toml` like `.scn` file.
+    pub fn save(&self, path: &Path, name: &str) -> Result<(), String> {
         
         // Write the saved scene data to disk.
         let mut full_name: PathBuf = path.to_owned();
                 full_name.push(Path::new(&format!("{name}.scn")));
-
-        let mut buffer: String = "# This scene file was generated automatically via node_tree.\n\n".to_string();
-                buffer        += &document.to_string();
+        
+        let buffer: String = self.save_to_str()?;
 
         let mut file: fs::File = fs::File::create(full_name).map_err(|err| format!("{err}"))?;
                 file.write_all(buffer.as_bytes()).map_err(|err| format!("{err}"))?;
@@ -299,6 +328,7 @@ impl Clone for NodeScene {
             let mut node_new:      Box<dyn Node> = node_original.clone_as_instance();
             
             node_new.set_rid(node_original.rid());
+            node_new.set_name(node_original.name());
 
             Box::into_raw(node_original); // Convert the box back so that its instance isn't deallocated when dropped.
             Box::into_raw(node_new)

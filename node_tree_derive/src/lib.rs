@@ -161,9 +161,15 @@ pub fn derive_registered(input: TokenStream) -> TokenStream {
             });
             
             quote! {
-                #field_name: #unique_ident::from_value( // TODO: Generic type arguments must be seperated with colons.
-                    owned_state.remove(stringify!(#field_name)).ok_or(format!("corrupt save data; `{}` missing", stringify!(#field_name)))?
-                ).ok_or(format!("corrupt save data; `{}` invalid type", stringify!(#field_name)))?
+                #field_name: {
+                    if #unique_ident::is_ghost_export_type() {
+                        #unique_ident::void()
+                    } else {
+                        #unique_ident::from_value(
+                            owned_state.remove(stringify!(#field_name)).ok_or(format!("corrupt save data; `{}` missing", stringify!(#field_name)))?
+                        ).ok_or(format!("corrupt save data; `{}` invalid type", stringify!(#field_name)))?
+                    }
+                }
             }
         }).collect(); // We need to collect here so that the unique identities are created here and now!
 
@@ -435,11 +441,33 @@ struct Const {
     declare: syn::ItemConst
 }
 
+#[derive(PartialEq, Eq)]
+enum FieldKind {
+    Regular,
+    Export,
+    ExportDefault,
+    Unique,
+    Default
+}
+
+impl FieldKind {
+    
+    /// Returns whether a field supports a defualt initialization.
+    fn supports_default_init(&self) -> bool {
+        match self {
+            FieldKind::ExportDefault => true,
+            FieldKind::Default       => true,
+            _                        => false
+        }
+    }
+}
+
 struct Field {
     name:    syn::Ident,
     attribs: Vec<syn::Attribute>,
     public:  bool,
     ty:      syn::Type,
+    kind:    FieldKind,
     init:    Option<syn::Expr>
 }
 
@@ -500,131 +528,177 @@ impl Parse for Class {
                 is_public = Some(input.parse::<tok::Pub>()?);
             }
 
+            // Parse the item kind or a unique statement keyword if there is one.
+            let mut item_kind:      FieldKind          = FieldKind::Regular;
+            let mut unique_starter: Option<syn::Ident> = None;
+            if input.peek(syn::Ident) {
+                let token:      syn::Ident = input.parse::<syn::Ident>()?;
+                let token_name: &str       = &token.to_string();
+                match token_name {
+                    "export" => {
+                        if input.peek(syn::Ident) {
+                            let next_token: syn::Ident = input.parse::<syn::Ident>()?;
+                            if &next_token.to_string() == "default" {
+                                item_kind = FieldKind::ExportDefault;   
+                            } else {
+                                return Err(syn::Error::new_spanned(next_token, "'export' only supports 'default' as a secondary attribute"));
+                            }
+                        } else {
+                            item_kind = FieldKind::Export;
+                        }
+                    },
+                    "unique"  => item_kind = FieldKind::Unique,
+                    "default" => item_kind = FieldKind::Default,
+                    _         => unique_starter = Some(token)
+                }
+            }
+
+            // Parse a custom statement.
+            if let Some(token) = unique_starter {
+                let token_name: &str = &token.to_string();
+                match token_name {
+                    "sig" => {
+                        if item_kind != FieldKind::Regular {
+                            return Err(syn::Error::new_spanned(token, "Signals cannot have field attributes"));
+                        }
+                        let signal_name: syn::Ident = input.parse()?;
+
+                        // Parse the arguments.
+                        let content;
+                        parenthesized!(content in input);
+
+                        let signal_args: Vec<syn::Type> = punc::Punctuated::<syn::FnArg, Token![,]>::parse_terminated(&content)?
+                            .into_iter()
+                            .map(|arg: syn::FnArg| {
+                                match arg {
+                                    syn::FnArg::Typed(pat)    => Ok(*pat.ty),
+                                    syn::FnArg::Receiver(rec) => Err(syn::Error::new_spanned(rec, "Signals cannot have a reciever"))
+                                }
+                            })
+                        .collect::<syn::Result<Vec<_>>>()?;
+
+                        input.parse::<tok::Semi>()?;
+                        signals.push(Signal {
+                            name:    signal_name,
+                            public:  is_public.is_some(),
+                            attribs: item_attribs,
+                            args:    signal_args
+                        });
+                    },
+
+                    "hk" => {
+                        if let Some(public) = is_public {
+                            return Err(syn::Error::new_spanned(public, "Hooks cannot have visibility modifiers"));
+                        }
+                        if item_kind != FieldKind::Regular {
+                            return Err(syn::Error::new_spanned(token, "Hooks cannot have field attributes"));
+                        }
+                        let hook_name: syn::Ident = input.parse()?;
+
+                        // Parse the arguments.
+                        let content;
+                        parenthesized!(content in input);
+
+                        let mut reciever: Option<Receiver>  = None;
+                        let     args:     Vec<syn::PatType> = punc::Punctuated::<syn::FnArg, Token![,]>::parse_terminated(&content)?
+                            .into_iter()
+                            .filter_map(|arg: syn::FnArg| {
+                                match arg {
+                                    syn::FnArg::Receiver(rec)   => { reciever = Some(rec); None }, 
+                                    syn::FnArg::Typed(pat_type) => Some(pat_type)
+                                }
+                            })
+                        .collect::<Vec<_>>();
+
+                        // Parse the output (if there is one!).
+                        let out: Option<syn::Ident> = if input.peek(Token![->]) {
+                            input.parse::<Token![->]>()?;
+                            Some(input.parse()?)
+                        } else {
+                            None
+                        };
+
+                        let body: syn::Block = input.parse()?;
+                        hooks.push(Hook {
+                            name:    hook_name,
+                            attribs: item_attribs,
+                            sig:     reciever,
+                            args,
+                            out,
+                            body
+                        });
+                    },
+
+                    _ => return Err(syn::Error::new_spanned(token, format!("Unknown token defined: {}", token_name))) 
+                }
+            }
+
+            // Parse a let statement:
+            else if item_kind != FieldKind::Regular || input.peek(Token![let]) {
+                input.parse::<tok::Let>()?;
+
+                let  name:  syn::Ident = input.parse()?;
+                let _colon: tok::Colon = input.parse()?;
+                let  ty:    syn::Type  = input.parse()?;
+
+                // Check for a default value.
+                let default_value: Option<syn::Expr> = if input.peek(Token![=]) {
+                    input.parse::<tok::Eq>()?;
+                    Some(input.parse::<syn::Expr>()?)
+                } else {
+                    None
+                };
+
+                if let Some(ref default_value) = default_value {
+                    if item_kind == FieldKind::Default {
+                        return Err(syn::Error::new_spanned(default_value, "A field with the attribute `default` cannot have an initialized value"));
+                    }
+                }
+
+                input.parse::<tok::Semi>()?;
+
+                // Append it to the fields group.
+                fields.push(Field {
+                    name,
+                    attribs: item_attribs,
+                    kind:    item_kind,
+                    public:  is_public.is_some(),
+                    ty,
+                    init:    default_value
+                });
+            }
+
             // Parse a constant:
-            if input.peek(Token![const]) {
+            else if input.peek(Token![const]) {
+                let declare: syn::ItemConst = input.parse()?; 
+                if item_kind != FieldKind::Regular {
+                    return Err(syn::Error::new_spanned(declare, "Fonstants cannot have field attributes"));
+                }
+
                 consts.push(Const {
                     attribs: item_attribs,
                     public:  is_public.is_some(),
-                    declare: input.parse()?
+                    declare 
                 });
             }
 
             // Parse a function:
             else if input.peek(Token![fn]) {
+                let declare: syn::ItemFn = input.parse()?;
+                if item_kind != FieldKind::Regular {
+                    return Err(syn::Error::new_spanned(declare, "Functions cannot have field attributes"));
+                }
+
                 funcs.push(Func {
                     attribs: item_attribs,
                     public:  is_public.is_some(),
-                    declare: input.parse()?
+                    declare
                 });
             }
 
-            // Parse a custom statement:
+            // Otherwise panic
             else {
-
-                // Parse a let statement:
-                if input.peek(Token![let]) {
-                    input.parse::<tok::Let>()?;
-
-                    let  name:  syn::Ident = input.parse()?;
-                    let _colon: tok::Colon = input.parse()?;
-                    let  ty:    syn::Type  = input.parse()?;
-
-                    // Check for a default value.
-                    let default_value: Option<syn::Expr> = if input.peek(Token![=]) {
-                        input.parse::<tok::Eq>()?;
-                        Some(input.parse::<syn::Expr>()?)
-                    } else {
-                        None
-                    };
-
-                    input.parse::<tok::Semi>()?;
-
-                    // Append it to the fields group.
-                    fields.push(Field {
-                        name,
-                        attribs: item_attribs,
-                        public:  is_public.is_some(),
-                        ty,
-                        init: default_value
-                    });
-                }
-
-                // Parse a signal or hook statement:
-                else if input.peek(syn::Ident) {
-                    let token:      syn::Ident = input.parse()?;
-                    let token_name: &str       = &token.to_string();
-                    match token_name {
-                        "sig" => {
-                            let signal_name: syn::Ident = input.parse()?;
-
-                            // Parse the arguments.
-                            let content;
-                            parenthesized!(content in input);
-
-                            let signal_args: Vec<syn::Type> = punc::Punctuated::<syn::FnArg, Token![,]>::parse_terminated(&content)?
-                                .into_iter()
-                                .map(|arg: syn::FnArg| {
-                                    match arg {
-                                        syn::FnArg::Typed(pat)    => Ok(*pat.ty),
-                                        syn::FnArg::Receiver(rec) => Err(syn::Error::new_spanned(rec, "Signals cannot have a reciever"))
-                                    }
-                                })
-                            .collect::<syn::Result<Vec<_>>>()?;
-
-                            input.parse::<tok::Semi>()?;
-                            signals.push(Signal {
-                                name:    signal_name,
-                                public:  is_public.is_some(),
-                                attribs: item_attribs,
-                                args:    signal_args
-                            });
-                        },
-
-                        "hk" => {
-                            if let Some(public) = is_public {
-                                return Err(syn::Error::new_spanned(public, "Hooks cannot have visibility modifiers"));
-                            }
-                            let hook_name: syn::Ident = input.parse()?;
-
-                            // Parse the arguments.
-                            let content;
-                            parenthesized!(content in input);
-
-                            let mut reciever: Option<Receiver>  = None;
-                            let     args:     Vec<syn::PatType> = punc::Punctuated::<syn::FnArg, Token![,]>::parse_terminated(&content)?
-                                .into_iter()
-                                .filter_map(|arg: syn::FnArg| {
-                                    match arg {
-                                        syn::FnArg::Receiver(rec)   => { reciever = Some(rec); None }, 
-                                        syn::FnArg::Typed(pat_type) => Some(pat_type)
-                                    }
-                                })
-                            .collect::<Vec<_>>();
-
-                            // Parse the output (if there is one!).
-                            let out: Option<syn::Ident> = if input.peek(Token![->]) {
-                                input.parse::<Token![->]>()?;
-                                Some(input.parse()?)
-                            } else {
-                                None
-                            };
-
-                            let body: syn::Block = input.parse()?;
-                            hooks.push(Hook {
-                                name:    hook_name,
-                                attribs: item_attribs,
-                                sig:     reciever,
-                                args,
-                                out,
-                                body
-                            });
-                        },
-
-                        _ => return Err(syn::Error::new_spanned(token, format!("Unknown token defined: {}", token_name))) 
-                    }
-                } else {
-                    panic!("Unknown token!");
-                }
+                panic!("Unknown token!");
             }
         }
         
@@ -664,8 +738,17 @@ impl Parse for Class {
 ///     let field_uninit:      u8;
 ///     let field_initialized: String = "These are not constant expressions!".to_string();
 ///
+///     // Fields can have special attributes, like so:
+///     default let field_default: u8; // Will automatically initialzie to zero.
+///     unique  let field_unique: *mut c_void; // When cloned or serialized, this will safetly be initialized as a `None` value.
+///
+///     // Exportable fields will be saved and loaded from whenever a node scene is serialized.
+///     // Note: All exported types will need to implement the `Exportable` trait.
+///     export         let some_parameter: String;
+///     export default let some_parameter_default: bool;
+///
 ///     // Hooks are any system functions that can be overridden.
-///     // This include the constructor `_init()`, `ready()`, `process()`, `terminal()`, and `process_mode()`.
+///     // This include the constructor `_init()`, `loaded()`, `ready()`, `process()`, `terminal()`, and `process_mode()`.
 ///
 ///     /// The constructor may only need to be implemented if there exists fields that do not have
 ///     /// a default value.
@@ -720,12 +803,12 @@ pub fn class(input: TokenStream) -> TokenStream {
         
         let visibility: TokenStream2 = if *public { quote! { pub } } else { TokenStream2::new() };
         match args.len() {
-            0 => quote! { #(#attribs)* #visibility #name: node_tree::prelude::Doc<node_tree::prelude::Signal<()>> },
+            0 => quote! { #(#attribs)* #visibility #name: node_tree::prelude::Signal<()> },
             1 => {
                 let only_arg: &syn::Type = &args[0];
-                quote! { #(#attribs)* #visibility #name: node_tree::prelude::Doc<node_tree::prelude::Signal<#only_arg>> }
+                quote! { #(#attribs)* #visibility #name: node_tree::prelude::Signal<#only_arg> }
             },
-            _ => quote! { #(#attribs)* #visibility #name: node_tree::prelude::Doc<node_tree::prelude::Signal<(#(#args,)*)>>}
+            _ => quote! { #(#attribs)* #visibility #name: node_tree::prelude::Signal<(#(#args,)*)>}
         }
     });
 
@@ -734,14 +817,19 @@ pub fn class(input: TokenStream) -> TokenStream {
         let Field {
             name,
             attribs,
+            kind,
             public,
             ty,
             ..
         } = field;
 
         let visibility: TokenStream2 = if *public { quote! { pub } } else { TokenStream2::new() };
-        quote! {
-            #(#attribs)* #visibility #name: #ty
+        match kind {
+            FieldKind::Regular        => quote! { #(#attribs)* #visibility #name: node_tree::structs::node_field::Field<#ty>           },
+            FieldKind::Export         => quote! { #(#attribs)* #visibility #name: node_tree::structs::node_field::ExportableField<#ty> },
+            FieldKind::ExportDefault  => quote! { #(#attribs)* #visibility #name: node_tree::structs::node_field::ExportableField<#ty> },
+            FieldKind::Unique         => quote! { #(#attribs)* #visibility #name: node_tree::structs::node_field::UniqueField<#ty>     },
+            FieldKind::Default        => quote! { #(#attribs)* #visibility #name: node_tree::structs::node_field::DefaultField<#ty>    }
         }
     });
 
@@ -749,26 +837,57 @@ pub fn class(input: TokenStream) -> TokenStream {
     // Take note if an _init definition is not required.
     const INIT: &str = "_init";
 
-    let needs_init: bool          = fields.iter().any(|field| field.init.is_none());
+    let needs_init: bool          = fields.iter().any(|field| field.init.is_none() && !field.kind.supports_default_init());
     let init_hook:  Option<&Hook> = hooks.iter().find(|hook| hook.name == INIT);
 
     let constructor_signals = signals.iter().map(|signal| {
         let signal_name: &syn::Ident = &signal.name;
-    
         quote! {
-            #signal_name: node_tree::prelude::Doc::new(node_tree::prelude::Signal::new())
+            #signal_name: node_tree::prelude::Signal::new()
         }
     });
 
     let constructor_fields = fields.iter().map(|field| {
-        let field_name: &syn::Ident = &field.name;
-        if let Some(default_value) = &field.init {
-            quote! {
-                #field_name: #default_value
-            }
-        } else {
-            quote! {
-                #field_name
+        let Field {
+            name,
+            kind,
+            ty,
+            ..
+        } = field;
+
+        match kind {
+            FieldKind::Regular => if let Some(default_value) = &field.init {
+                quote! {
+                    #name: node_tree::structs::node_field::Field::new(#default_value)
+                }
+            } else {
+                quote! {
+                    #name: node_tree::structs::node_field::Field::new(#name)
+                }
+            },
+            FieldKind::Export => if let Some(default_value) = &field.init {
+                quote! {
+                    #name: node_tree::structs::node_field::ExportableField::new(#default_value)
+                }
+            } else {
+                quote! {
+                    #name: node_tree::structs::node_field::ExportableField::new(#name)
+                }
+            },
+            FieldKind::ExportDefault => quote! {
+                #name: node_tree::structs::node_field::ExportableField::new(#ty::default())
+            }, 
+            FieldKind::Unique => if let Some(default_value) = &field.init {
+                quote! {
+                    #name: node_tree::structs::node_field::UniqueField::new(#default_value)
+                }
+            } else {
+                quote! {
+                    #name: node_tree::structs::node_field::UniqueField::new(#name)
+                }
+            },
+            FieldKind::Default => quote! {
+                #name: node_tree::structs::node_field::DefaultField::new(#ty::default())
             }
         }
     });

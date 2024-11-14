@@ -7,7 +7,7 @@ class! {
     
     sig on_event(count: u8);
     
-    let count: u8 = 0;
+    default let count: u8;
     
     hk ready(&mut self) {
         let child: Tp<NodeB> = self.get_child(0).unwrap();

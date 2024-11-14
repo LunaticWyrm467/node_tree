@@ -33,7 +33,7 @@ use dashmap::DashMap;
 pub use toml_edit::Value;
 
 use crate::traits::node::Node;
-use crate::traits::serializable::Serializable;
+use crate::traits::exportable::Exportable;
 
 
 /// Represents a static node registry.
@@ -74,7 +74,7 @@ use crate::traits::serializable::Serializable;
 static mut NODE_REGISTRY: Option<Arc<Registry>> = None;
 
 /// Used as a alias for a map containing the unserialized fields of a node, along with its associated values.
-pub type FieldMap = HashMap<Box<str>, Box<dyn Serializable>>;
+pub type FieldMap = HashMap<Box<str>, Box<dyn Exportable>>;
 
 /// Used as an alias for a map containing the serialized fields of a node, along with its associated values.
 pub type SFieldMap = HashMap<Box<str>, Value>;

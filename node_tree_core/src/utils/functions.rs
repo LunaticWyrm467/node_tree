@@ -128,6 +128,22 @@ pub fn draw_tree(node_tree: &NodeTreeBase, origin: RID, view_up: usize, view_dow
     let mut warnings: Vec<String> = Vec::new();
     let mut panics:   Vec<String> = Vec::new();
 
+    fn handle_name_and_status(child_name: &str, status: NodeStatus, warnings: &mut Vec<String>, panics: &mut Vec<String>) -> String {
+        match status {
+            NodeStatus::Normal => child_name.to_owned(),
+
+            NodeStatus::JustWarned(warn) => {
+                warnings.push(format!("{} - {}", child_name, warn));
+                format!("\u{001b}[33m{}\u{001b}[0m", child_name)
+            },
+
+            NodeStatus::JustPanicked(panic) => {
+                panics.push(format!("{} - {}", child_name, panic));
+                format!("\u{001b}[31m{}\u{001b}[0m", child_name)
+            }
+        }
+    }
+
     fn walk(tree: &NodeTreeBase, node_rid: RID, prefix: &str, out: &mut String, warnings: &mut Vec<String>, panics: &mut Vec<String>, level: usize) {
         let     node:  &dyn Node = unsafe { tree.get_node(node_rid).unwrap_unchecked() };
         let mut count: usize     = node.num_children();
@@ -136,20 +152,8 @@ pub fn draw_tree(node_tree: &NodeTreeBase, origin: RID, view_up: usize, view_dow
             count -= 1;
             let     connector:  &str   = if count == 0 { FINAL_ENTRY } else { OTHER_ENTRY };
             let mut child_name: String = child.name().to_string();
-
-            match child.status() {
-                NodeStatus::Normal => (),
-
-                NodeStatus::JustWarned(warn) => {
-                    child_name = format!("\u{001b}[33m{}\u{001b}[0m", child_name);
-                    warnings.push(format!("{} - {}", child.name(), warn));
-                },
-                
-                NodeStatus::JustPanicked(panic) => {
-                    child_name = format!("\u{001b}[31m{}\u{001b}[0m", child_name);
-                    panics.push(format!("{} - {}", child.name(), panic));
-                }
-            }
+            
+            child_name = handle_name_and_status(&child_name, child.status(), warnings, panics);
             
             *out += &format!("{}{}{}\n", prefix, connector, if level != 0 { child_name } else { "...".to_string() });
             if !child.childless() && level != 0 {
@@ -159,7 +163,7 @@ pub fn draw_tree(node_tree: &NodeTreeBase, origin: RID, view_up: usize, view_dow
         }
     }
 
-    let mut out: String = format!("[REPORT START]\n{}\n", draw_from.name());
+    let mut out: String = format!("[REPORT START]\n{}\n", handle_name_and_status(draw_from.name(), draw_from.status(), &mut warnings, &mut panics));
     walk(node_tree, draw_from.rid(), "", &mut out, &mut warnings, &mut panics, levels + 1);   // + 1 to compensate for the last names being replaced with "..."
    
     out += "\n[Same-Frame Warnings]";

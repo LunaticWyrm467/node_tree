@@ -1,13 +1,16 @@
 //===================================================================================================================================================================================//
 //
-//   /$$$$$$                      /$$           /$$ /$$                     /$$       /$$          
-//  /$$__  $$                    |__/          | $$|__/                    | $$      | $$          
-// | $$  \__/  /$$$$$$   /$$$$$$  /$$  /$$$$$$ | $$ /$$ /$$$$$$$$  /$$$$$$ | $$$$$$$ | $$  /$$$$$$ 
-// |  $$$$$$  /$$__  $$ /$$__  $$| $$ |____  $$| $$| $$|____ /$$/ |____  $$| $$__  $$| $$ /$$__  $$
-//  \____  $$| $$$$$$$$| $$  \__/| $$  /$$$$$$$| $$| $$   /$$$$/   /$$$$$$$| $$  \ $$| $$| $$$$$$$$
-//  /$$  \ $$| $$_____/| $$      | $$ /$$__  $$| $$| $$  /$$__/   /$$__  $$| $$  | $$| $$| $$_____/
-// |  $$$$$$/|  $$$$$$$| $$      | $$|  $$$$$$$| $$| $$ /$$$$$$$$|  $$$$$$$| $$$$$$$/| $$|  $$$$$$$
-//  \______/  \_______/|__/      |__/ \_______/|__/|__/|________/ \_______/|_______/ |__/ \_______/
+//  /$$$$$$$$                                           /$$               /$$       /$$          
+// | $$_____/                                          | $$              | $$      | $$          
+// | $$       /$$   /$$  /$$$$$$   /$$$$$$   /$$$$$$  /$$$$$$    /$$$$$$ | $$$$$$$ | $$  /$$$$$$ 
+// | $$$$$   |  $$ /$$/ /$$__  $$ /$$__  $$ /$$__  $$|_  $$_/   |____  $$| $$__  $$| $$ /$$__  $$
+// | $$__/    \  $$$$/ | $$  \ $$| $$  \ $$| $$  \__/  | $$      /$$$$$$$| $$  \ $$| $$| $$$$$$$$
+// | $$        >$$  $$ | $$  | $$| $$  | $$| $$        | $$ /$$ /$$__  $$| $$  | $$| $$| $$_____/
+// | $$$$$$$$ /$$/\  $$| $$$$$$$/|  $$$$$$/| $$        |  $$$$/|  $$$$$$$| $$$$$$$/| $$|  $$$$$$$
+// |________/|__/  \__/| $$____/  \______/ |__/         \___/   \_______/|_______/ |__/ \_______/
+//                     | $$                                                                      
+//                     | $$                                                                      
+//                     |__/                                                                      
 //
 //===================================================================================================================================================================================//
 
@@ -19,9 +22,15 @@
 //?
 
 //!
-//! Provides the `Serializable` trait, which all types that are to be used in nodes must implement.
-//! Implementing a `Serializable` trait is quite simple, with there being only two functions for
-//! serializing and deserializing a value.
+//! Provides the `Voidable` and `Exportable` traits.
+//! - `Voidable` must be implemented by all node fields, but this is already handled by the
+//! `class!` macro and the `NodeField` variants.
+//!
+//! - All types that are to be used in the export fields of nodes must implement `Exportable;
+//! Implementing a `Exportable` trait is quite simple, with there being only two functions for
+//! serializing and deserializing a value. There can also be "ghost" exportables, which do not save
+//! or serialize any data. Please see the documentation for `Exportable::is_ghost_export()` for
+//! more detail.
 //! 
 
 use std::{
@@ -41,28 +50,57 @@ use toml_edit as toml;
 use crate::structs::node_path::NodePath;
 
 
+/// Used to denote types that are `voidable` upon serialization; e.g. ghost export types.
+pub trait Voidable {
+    
+    /// Returns a default or uninitialized variant of this object.
+    fn void() -> Self;
+}
+
+
 /// Used for representing types that can be parsed and loaded from `TOML` files, and as such are
 /// supported fully via `node_tree`'s saving and loading system.
-pub trait Serializable {
+pub trait Exportable {
+
+    /// This function is a static extension of the `is_ghost_export` that calls the `is_ghost_export`
+    /// function from a zereod instance.
+    fn is_ghost_export_type() -> bool where Self: Sized {
+        unsafe {
+            mem::MaybeUninit::<Self>::uninit()
+                .assume_init_ref() // SAFETY: Do not take ownership, as calling the `drop` function on an uninitialized value could result in UB!
+                .is_ghost_export()
+        }
+    }
+
+    /// If this function is overridden and returns true, the implementing type will not be written
+    /// to or loaded from.
+    ///
+    /// # Safety
+    /// You may not rely on the state passed by `self`, as this function can be called on valid
+    /// instances or zereod instances of `Self` in memory.
+    unsafe fn is_ghost_export(&self) -> bool { false }
     
     /// Converts a type to a toml value.
+    /// If this is a ghost export, you may simply mark the function body as `unimplemented!()`.
     fn to_value(&self) -> toml::Value;
 
     /// Converts a toml value right back to its origin type.
     fn from_value(value: toml::Value) -> Option<Self> where Self: Sized;
 }
 
-impl Serializable for () {
+impl Exportable for () {
+    unsafe fn is_ghost_export(&self) -> bool { true }
+
     fn to_value(&self) -> toml::Value {
-        toml::Value::Array(toml::Array::new())
+        unimplemented!()
     }
 
     fn from_value(_value: toml::Value) -> Option<Self> where Self: Sized {
-        Some(())
+        unimplemented!()
     }
 }
 
-impl Serializable for bool {
+impl Exportable for bool {
     fn to_value(&self) -> toml::Value {
         (*self).into()
     }
@@ -75,7 +113,7 @@ impl Serializable for bool {
     }
 }
 
-impl Serializable for u8 {
+impl Exportable for u8 {
     fn to_value(&self) -> toml::Value {
         (*self as i64).into()
     }
@@ -87,7 +125,7 @@ impl Serializable for u8 {
         }
     }
 }
-impl Serializable for u16 {
+impl Exportable for u16 {
     fn to_value(&self) -> toml::Value {
         (*self as i64).into()
     }
@@ -99,7 +137,7 @@ impl Serializable for u16 {
         }
     }
 }
-impl Serializable for u32 {
+impl Exportable for u32 {
     fn to_value(&self) -> toml::Value {
         (*self as i64).into()
     }
@@ -111,7 +149,7 @@ impl Serializable for u32 {
         }
     }
 }
-impl Serializable for u64 {
+impl Exportable for u64 {
     fn to_value(&self) -> toml::Value {
         (*self as i64).into()
     }
@@ -123,7 +161,7 @@ impl Serializable for u64 {
         }
     }
 }
-impl Serializable for i8 {
+impl Exportable for i8 {
     fn to_value(&self) -> toml::Value {
         (*self as i64).into()
     }
@@ -135,7 +173,7 @@ impl Serializable for i8 {
         }
     }
 }
-impl Serializable for i16 {
+impl Exportable for i16 {
     fn to_value(&self) -> toml::Value {
         (*self as i64).into()
     }
@@ -147,7 +185,7 @@ impl Serializable for i16 {
         }
     }
 }
-impl Serializable for i32 {
+impl Exportable for i32 {
     fn to_value(&self) -> toml::Value {
         (*self as i64).into()
     }
@@ -159,7 +197,7 @@ impl Serializable for i32 {
         }
     }
 }
-impl Serializable for i64 {
+impl Exportable for i64 {
     fn to_value(&self) -> toml::Value {
         (*self).into()
     }
@@ -171,7 +209,7 @@ impl Serializable for i64 {
         }
     }
 }
-impl Serializable for f32 {
+impl Exportable for f32 {
     fn to_value(&self) -> toml::Value {
         (*self as f64).into()
     }
@@ -183,7 +221,7 @@ impl Serializable for f32 {
         }
     }
 }
-impl Serializable for f64 {
+impl Exportable for f64 {
     fn to_value(&self) -> toml::Value {
         (*self).into()
     }
@@ -196,7 +234,7 @@ impl Serializable for f64 {
     }
 }
 
-impl Serializable for char {
+impl Exportable for char {
     fn to_value(&self) -> toml::Value {
         self.to_string().into()
     }
@@ -215,7 +253,7 @@ impl Serializable for char {
         }
     }
 }
-impl Serializable for String {
+impl Exportable for String {
     fn to_value(&self) -> toml::Value {
         self.to_owned().into()
     }
@@ -227,7 +265,7 @@ impl Serializable for String {
         }
     }
 }
-impl Serializable for NodePath {
+impl Exportable for NodePath {
     fn to_value(&self) -> toml::Value {
         self.to_owned().to_string().to_value()
     }
@@ -236,7 +274,7 @@ impl Serializable for NodePath {
         String::from_value(value).map(|str| NodePath::from_str(&str))
     }
 }
-impl Serializable for path::PathBuf {
+impl Exportable for path::PathBuf {
     fn to_value(&self) -> toml::Value {
         self.to_str().expect("Invalid unicode").to_owned().to_value()
     }
@@ -246,7 +284,7 @@ impl Serializable for path::PathBuf {
     }
 }
 
-impl Serializable for net::Ipv4Addr {
+impl Exportable for net::Ipv4Addr {
     fn to_value(&self) -> toml::Value {
         self.to_string().to_value()
     }
@@ -255,7 +293,7 @@ impl Serializable for net::Ipv4Addr {
         net::Ipv4Addr::from_str(&String::from_value(value)?).ok()
     }
 }
-impl Serializable for net::Ipv6Addr {
+impl Exportable for net::Ipv6Addr {
     fn to_value(&self) -> toml::Value {
         self.to_string().to_value()
     }
@@ -264,7 +302,7 @@ impl Serializable for net::Ipv6Addr {
         net::Ipv6Addr::from_str(&String::from_value(value)?).ok()
     }
 }
-impl Serializable for net::IpAddr {
+impl Exportable for net::IpAddr {
     fn to_value(&self) -> toml::Value {
         self.to_string().to_value()
     }
@@ -274,7 +312,7 @@ impl Serializable for net::IpAddr {
     }
 }
 
-impl Serializable for time::Duration {
+impl Exportable for time::Duration {
     fn to_value(&self) -> toml::Value {
         self.as_secs_f64().to_value()
     }
@@ -283,7 +321,7 @@ impl Serializable for time::Duration {
         Some(time::Duration::from_secs_f64(value.as_float()?))
     }
 }
-impl Serializable for toml::Datetime {
+impl Exportable for toml::Datetime {
     fn to_value(&self) -> toml::Value {
         toml::Value::Datetime(toml::Formatted::new(self.to_owned()))
     }
@@ -296,7 +334,7 @@ impl Serializable for toml::Datetime {
     }
 }
 
-impl <T: Serializable> Serializable for Option<T> {
+impl <T: Exportable> Exportable for Option<T> {
     fn to_value(&self) -> toml::Value {
         let map: toml::InlineTable = match self {
             Some(value) => toml::InlineTable::from_iter(vec![("value".to_string(), value.to_value())]),
@@ -318,7 +356,7 @@ impl <T: Serializable> Serializable for Option<T> {
     }
 }
 
-impl <T: Serializable> Serializable for Vec<T> {
+impl <T: Exportable> Exportable for Vec<T> {
     fn to_value(&self) -> toml::Value {
         let arr: toml::Array = toml::Array::from_iter(self.iter().map(|v| (v.to_owned()).to_value()));
         arr.into()
@@ -332,7 +370,7 @@ impl <T: Serializable> Serializable for Vec<T> {
     }
 }
 
-impl <T: Serializable + hash::Hash + cmp::Eq> Serializable for HashSet<T> {
+impl <T: Exportable + hash::Hash + cmp::Eq> Exportable for HashSet<T> {
     fn to_value(&self) -> toml::Value {
         let arr: toml::Array = toml::Array::from_iter(self.iter().map(|x| x.to_value()));
         toml::Value::Array(arr)
@@ -345,7 +383,7 @@ impl <T: Serializable + hash::Hash + cmp::Eq> Serializable for HashSet<T> {
         }
     }
 }
-impl <V: Serializable> Serializable for HashMap<char, V> {
+impl <V: Exportable> Exportable for HashMap<char, V> {
     fn to_value(&self) -> toml::Value {
         self.iter().map(|(k, v)| (k.to_string(), (v.to_owned()).to_value())).collect::<toml::InlineTable>().into()
     }
@@ -368,7 +406,7 @@ impl <V: Serializable> Serializable for HashMap<char, V> {
         }
     }
 }
-impl <V: Serializable> Serializable for HashMap<String, V> {
+impl <V: Exportable> Exportable for HashMap<String, V> {
     fn to_value(&self) -> toml::Value {
         self.iter().map(|(k, v)| (k.to_owned(), (v.to_owned()).to_value())).collect::<toml::InlineTable>().into()
     }
@@ -385,7 +423,7 @@ impl <V: Serializable> Serializable for HashMap<String, V> {
     }
 }
 
-impl <T: Serializable + cmp::Ord> Serializable for BTreeSet<T> {
+impl <T: Exportable + cmp::Ord> Exportable for BTreeSet<T> {
     fn to_value(&self) -> toml::Value {
         let arr: toml::Array = toml::Array::from_iter(self.iter().map(|x| x.to_value()));
         toml::Value::Array(arr)
@@ -398,7 +436,7 @@ impl <T: Serializable + cmp::Ord> Serializable for BTreeSet<T> {
         }
     }
 }
-impl <V: Serializable> Serializable for BTreeMap<char, V> {
+impl <V: Exportable> Exportable for BTreeMap<char, V> {
     fn to_value(&self) -> toml::Value {
         self.iter().map(|(k, v)| (k.to_string(), (v.to_owned()).to_value())).collect::<toml::InlineTable>().into()
     }
@@ -421,7 +459,7 @@ impl <V: Serializable> Serializable for BTreeMap<char, V> {
         }
     }
 }
-impl <V: Serializable> Serializable for BTreeMap<String, V> {
+impl <V: Exportable> Exportable for BTreeMap<String, V> {
     fn to_value(&self) -> toml::Value {
         self.iter().map(|(k, v)| (k.to_owned(), (v.to_owned()).to_value())).collect::<toml::InlineTable>().into()
     }
@@ -438,7 +476,7 @@ impl <V: Serializable> Serializable for BTreeMap<String, V> {
     }
 }
 
-impl <T: Serializable> Serializable for Box<T> {
+impl <T: Exportable> Exportable for Box<T> {
     fn to_value(&self) -> toml::Value {
         self.deref().to_value()
     }
@@ -448,7 +486,7 @@ impl <T: Serializable> Serializable for Box<T> {
     }
 }
 
-impl <T: Serializable> Serializable for std::rc::Rc<T> {
+impl <T: Exportable> Exportable for std::rc::Rc<T> {
     fn to_value(&self) -> toml::Value {
         self.deref().to_value()
     }
@@ -458,7 +496,7 @@ impl <T: Serializable> Serializable for std::rc::Rc<T> {
     }
 }
 
-impl <T: Serializable> Serializable for std::sync::Arc<T> {
+impl <T: Exportable> Exportable for std::sync::Arc<T> {
     fn to_value(&self) -> toml::Value {
         self.deref().to_value()
     }
@@ -468,7 +506,7 @@ impl <T: Serializable> Serializable for std::sync::Arc<T> {
     }
 }
 
-impl <T: Serializable> Serializable for std::sync::Mutex<T> {
+impl <T: Exportable> Exportable for std::sync::Mutex<T> {
     fn to_value(&self) -> toml::Value {
         self.lock().unwrap_or_else(|err| panic!("Serialization failed: {err}")).to_value()
     }
@@ -478,7 +516,7 @@ impl <T: Serializable> Serializable for std::sync::Mutex<T> {
     }
 }
 
-impl <const N: usize, T: Serializable> Serializable for [T; N] {
+impl <const N: usize, T: Exportable> Exportable for [T; N] {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(self.iter().map(|x| x.to_value()).collect())
     }
@@ -501,7 +539,7 @@ impl <const N: usize, T: Serializable> Serializable for [T; N] {
     }
 }
 
-impl <A: Serializable> Serializable for (A,) {
+impl <A: Exportable> Exportable for (A,) {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.0.to_value()]))
     }
@@ -518,7 +556,7 @@ impl <A: Serializable> Serializable for (A,) {
         }
     }
 }
-impl <A: Serializable, B: Serializable> Serializable for (A, B) {
+impl <A: Exportable, B: Exportable> Exportable for (A, B) {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.0.to_value(), self.1.to_value()]))
     }
@@ -535,7 +573,7 @@ impl <A: Serializable, B: Serializable> Serializable for (A, B) {
         }
     }
 }
-impl <A: Serializable, B: Serializable, C: Serializable> Serializable for (A, B, C) {
+impl <A: Exportable, B: Exportable, C: Exportable> Exportable for (A, B, C) {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.0.to_value(), self.1.to_value(), self.2.to_value()]))
     }
@@ -552,7 +590,7 @@ impl <A: Serializable, B: Serializable, C: Serializable> Serializable for (A, B,
         }
     }
 }
-impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable> Serializable for (A, B, C, D) {
+impl <A: Exportable, B: Exportable, C: Exportable, D: Exportable> Exportable for (A, B, C, D) {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value()]))
     }
@@ -569,7 +607,7 @@ impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable> Serial
         }
     }
 }
-impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Serializable> Serializable for (A, B, C, D, E) {
+impl <A: Exportable, B: Exportable, C: Exportable, D: Exportable, E: Exportable> Exportable for (A, B, C, D, E) {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value()]))
     }
@@ -586,8 +624,8 @@ impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Ser
         }
     }
 }
-impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Serializable,
-      F: Serializable> Serializable for (A, B, C, D, E, F) {
+impl <A: Exportable, B: Exportable, C: Exportable, D: Exportable, E: Exportable,
+      F: Exportable> Exportable for (A, B, C, D, E, F) {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![
             self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value(),
@@ -610,8 +648,8 @@ impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Ser
         }
     }
 }
-impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Serializable,
-      F: Serializable, G: Serializable> Serializable for (A, B, C, D, E, F, G) {
+impl <A: Exportable, B: Exportable, C: Exportable, D: Exportable, E: Exportable,
+      F: Exportable, G: Exportable> Exportable for (A, B, C, D, E, F, G) {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![
             self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value(),
@@ -634,8 +672,8 @@ impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Ser
         }
     }
 }
-impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Serializable,
-      F: Serializable, G: Serializable, H: Serializable> Serializable for (A, B, C, D, E, F, G, H) {
+impl <A: Exportable, B: Exportable, C: Exportable, D: Exportable, E: Exportable,
+      F: Exportable, G: Exportable, H: Exportable> Exportable for (A, B, C, D, E, F, G, H) {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![
             self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value(),
@@ -658,8 +696,8 @@ impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Ser
         }
     }
 }
-impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Serializable,
-      F: Serializable, G: Serializable, H: Serializable, I: Serializable> Serializable for (A, B, C, D, E, F, G, H, I) {
+impl <A: Exportable, B: Exportable, C: Exportable, D: Exportable, E: Exportable,
+      F: Exportable, G: Exportable, H: Exportable, I: Exportable> Exportable for (A, B, C, D, E, F, G, H, I) {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![
             self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value(),
@@ -682,8 +720,8 @@ impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Ser
         }
     }
 }
-impl <A: Serializable, B: Serializable, C: Serializable, D: Serializable, E: Serializable,
-      F: Serializable, G: Serializable, H: Serializable, I: Serializable, J: Serializable> Serializable for (A, B, C, D, E, F, G, H, I, J) {
+impl <A: Exportable, B: Exportable, C: Exportable, D: Exportable, E: Exportable,
+      F: Exportable, G: Exportable, H: Exportable, I: Exportable, J: Exportable> Exportable for (A, B, C, D, E, F, G, H, I, J) {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![
             self.0.to_value(), self.1.to_value(), self.2.to_value(), self.3.to_value(), self.4.to_value(),

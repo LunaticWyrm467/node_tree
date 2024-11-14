@@ -11,23 +11,23 @@ use node_tree::trees::TreeSimple;
 class! {
     dec NodeA;
 
-    let field_1: u64    = 0;
-    let field_2: String = "Hello World!".to_string();
-    let field_3: bool   = false;
+    export let field_1: u64    = 0;
+    export let field_2: String = "Hello World!".to_string();
+    export let field_3: bool   = false;
 }
 
 class! {
     dec NodeB;
 
-    let field_a: u8   = 255;
-    let field_b: char = 'x';
+    export let field_a: u8   = 255;
+    export let field_b: char = 'x';
 }
 
 class! {
     dec NodeC;
 
-    let field_0: Vec<u8>           = vec![0, 1];
-    let field_1: HashMap<char, u8> = vec![('a', 0), ('b', 1), ('c', 2)].into_iter().collect();
+    export let field_0: Vec<u8>           = vec![0, 1];
+    export let field_1: HashMap<char, u8> = vec![('a', 0), ('b', 1), ('c', 2)].into_iter().collect();
 
     hk loaded(&mut self) {
         self.field_0.push(2);

@@ -6,10 +6,10 @@ use glam::{
 };
 use toml_edit as toml;
 
-use super::serializable::Serializable;
+use super::exportable::Exportable;
 
 
-impl Serializable for g_bool::BVec2 {
+impl Exportable for g_bool::BVec2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.x, self.y]))
     }
@@ -26,7 +26,7 @@ impl Serializable for g_bool::BVec2 {
         }
     }
 }
-impl Serializable for g_bool::BVec3 {
+impl Exportable for g_bool::BVec3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.x, self.y, self.z]))
     }
@@ -43,7 +43,7 @@ impl Serializable for g_bool::BVec3 {
         }
     }
 }
-impl Serializable for g_bool::BVec4 {
+impl Exportable for g_bool::BVec4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.x, self.y, self.z, self.w]))
     }
@@ -61,7 +61,7 @@ impl Serializable for g_bool::BVec4 {
     }
 }
 
-impl Serializable for g_u8::U8Vec2 {
+impl Exportable for g_u8::U8Vec2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -78,7 +78,7 @@ impl Serializable for g_u8::U8Vec2 {
         }
     }
 }
-impl Serializable for g_u8::U8Vec3 {
+impl Exportable for g_u8::U8Vec3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -95,7 +95,7 @@ impl Serializable for g_u8::U8Vec3 {
         }
     }
 }
-impl Serializable for g_u8::U8Vec4 {
+impl Exportable for g_u8::U8Vec4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -113,7 +113,7 @@ impl Serializable for g_u8::U8Vec4 {
     }
 }
 
-impl Serializable for g_u16::U16Vec2 {
+impl Exportable for g_u16::U16Vec2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -130,7 +130,7 @@ impl Serializable for g_u16::U16Vec2 {
         }
     }
 }
-impl Serializable for g_u16::U16Vec3 {
+impl Exportable for g_u16::U16Vec3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -147,7 +147,7 @@ impl Serializable for g_u16::U16Vec3 {
         }
     }
 }
-impl Serializable for g_u16::U16Vec4 {
+impl Exportable for g_u16::U16Vec4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -165,7 +165,7 @@ impl Serializable for g_u16::U16Vec4 {
     }
 }
 
-impl Serializable for g_u32::UVec2 {
+impl Exportable for g_u32::UVec2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -182,7 +182,7 @@ impl Serializable for g_u32::UVec2 {
         }
     }
 }
-impl Serializable for g_u32::UVec3 {
+impl Exportable for g_u32::UVec3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -199,7 +199,7 @@ impl Serializable for g_u32::UVec3 {
         }
     }
 }
-impl Serializable for g_u32::UVec4 {
+impl Exportable for g_u32::UVec4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -217,7 +217,7 @@ impl Serializable for g_u32::UVec4 {
     }
 }
 
-impl Serializable for g_u64::U64Vec2 {
+impl Exportable for g_u64::U64Vec2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -234,7 +234,7 @@ impl Serializable for g_u64::U64Vec2 {
         }
     }
 }
-impl Serializable for g_u64::U64Vec3 {
+impl Exportable for g_u64::U64Vec3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -251,7 +251,7 @@ impl Serializable for g_u64::U64Vec3 {
         }
     }
 }
-impl Serializable for g_u64::U64Vec4 {
+impl Exportable for g_u64::U64Vec4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -269,7 +269,7 @@ impl Serializable for g_u64::U64Vec4 {
     }
 }
 
-impl Serializable for g_i8::I8Vec2 {
+impl Exportable for g_i8::I8Vec2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -286,7 +286,7 @@ impl Serializable for g_i8::I8Vec2 {
         }
     }
 }
-impl Serializable for g_i8::I8Vec3 {
+impl Exportable for g_i8::I8Vec3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -303,7 +303,7 @@ impl Serializable for g_i8::I8Vec3 {
         }
     }
 }
-impl Serializable for g_i8::I8Vec4 {
+impl Exportable for g_i8::I8Vec4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -321,7 +321,7 @@ impl Serializable for g_i8::I8Vec4 {
     }
 }
 
-impl Serializable for g_i16::I16Vec2 {
+impl Exportable for g_i16::I16Vec2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -338,7 +338,7 @@ impl Serializable for g_i16::I16Vec2 {
         }
     }
 }
-impl Serializable for g_i16::I16Vec3 {
+impl Exportable for g_i16::I16Vec3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -355,7 +355,7 @@ impl Serializable for g_i16::I16Vec3 {
         }
     }
 }
-impl Serializable for g_i16::I16Vec4 {
+impl Exportable for g_i16::I16Vec4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -373,7 +373,7 @@ impl Serializable for g_i16::I16Vec4 {
     }
 }
 
-impl Serializable for g_i32::IVec2 {
+impl Exportable for g_i32::IVec2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -390,7 +390,7 @@ impl Serializable for g_i32::IVec2 {
         }
     }
 }
-impl Serializable for g_i32::IVec3 {
+impl Exportable for g_i32::IVec3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -407,7 +407,7 @@ impl Serializable for g_i32::IVec3 {
         }
     }
 }
-impl Serializable for g_i32::IVec4 {
+impl Exportable for g_i32::IVec4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as i64)))
     }
@@ -425,7 +425,7 @@ impl Serializable for g_i32::IVec4 {
     }
 }
 
-impl Serializable for g_i64::I64Vec2 {
+impl Exportable for g_i64::I64Vec2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array()))
     }
@@ -442,7 +442,7 @@ impl Serializable for g_i64::I64Vec2 {
         }
     }
 }
-impl Serializable for g_i64::I64Vec3 {
+impl Exportable for g_i64::I64Vec3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array()))
     }
@@ -459,7 +459,7 @@ impl Serializable for g_i64::I64Vec3 {
         }
     }
 }
-impl Serializable for g_i64::I64Vec4 {
+impl Exportable for g_i64::I64Vec4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array()))
     }
@@ -477,7 +477,7 @@ impl Serializable for g_i64::I64Vec4 {
     }
 }
 
-impl Serializable for g_f32::Vec2 {
+impl Exportable for g_f32::Vec2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as f64)))
     }
@@ -494,7 +494,7 @@ impl Serializable for g_f32::Vec2 {
         }
     }
 }
-impl Serializable for g_f32::Vec3 {
+impl Exportable for g_f32::Vec3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as f64)))
     }
@@ -511,7 +511,7 @@ impl Serializable for g_f32::Vec3 {
         }
     }
 }
-impl Serializable for g_f32::Vec3A {
+impl Exportable for g_f32::Vec3A {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as f64)))
     }
@@ -528,7 +528,7 @@ impl Serializable for g_f32::Vec3A {
         }
     }
 }
-impl Serializable for g_f32::Vec4 {
+impl Exportable for g_f32::Vec4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array().map(|x| x as f64)))
     }
@@ -545,7 +545,7 @@ impl Serializable for g_f32::Vec4 {
         }
     }
 }
-impl Serializable for g_f32::Mat2 {
+impl Exportable for g_f32::Mat2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.x_axis.to_value(), self.y_axis.to_value()]))
     }
@@ -562,7 +562,7 @@ impl Serializable for g_f32::Mat2 {
         }
     }
 }
-impl Serializable for g_f32::Mat3 {
+impl Exportable for g_f32::Mat3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.x_axis.to_value(), self.y_axis.to_value(), self.z_axis.to_value()]))
     }
@@ -579,7 +579,7 @@ impl Serializable for g_f32::Mat3 {
         }
     }
 }
-impl Serializable for g_f32::Mat3A {
+impl Exportable for g_f32::Mat3A {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.x_axis.to_value(), self.y_axis.to_value(), self.z_axis.to_value()]))
     }
@@ -596,7 +596,7 @@ impl Serializable for g_f32::Mat3A {
         }
     }
 }
-impl Serializable for g_f32::Mat4 {
+impl Exportable for g_f32::Mat4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.x_axis.to_value(), self.y_axis.to_value(), self.z_axis.to_value(), self.w_axis.to_value()]))
     }
@@ -616,7 +616,7 @@ impl Serializable for g_f32::Mat4 {
         }
     }
 }
-impl Serializable for g_f32::Quat {
+impl Exportable for g_f32::Quat {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.x as f64, self.y as f64, self.z as f64, self.w as f64]))
     }
@@ -633,7 +633,7 @@ impl Serializable for g_f32::Quat {
         }
     }
 }
-impl Serializable for g_f32::Affine2 {
+impl Exportable for g_f32::Affine2 {
     fn to_value(&self) -> toml_edit::Value {
         let mut table: toml::InlineTable = toml::InlineTable::new();
                 table.insert("matrix2",     self.matrix2.to_value());
@@ -651,7 +651,7 @@ impl Serializable for g_f32::Affine2 {
         ))
     }
 }
-impl Serializable for g_f32::Affine3A {
+impl Exportable for g_f32::Affine3A {
     fn to_value(&self) -> toml_edit::Value {
         let mut table: toml::InlineTable = toml::InlineTable::new();
                 table.insert("matrix3",     self.matrix3.to_value());
@@ -670,7 +670,7 @@ impl Serializable for g_f32::Affine3A {
     }
 }
 
-impl Serializable for g_f64::DVec2 {
+impl Exportable for g_f64::DVec2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array()))
     }
@@ -687,7 +687,7 @@ impl Serializable for g_f64::DVec2 {
         }
     }
 }
-impl Serializable for g_f64::DVec3 {
+impl Exportable for g_f64::DVec3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array()))
     }
@@ -704,7 +704,7 @@ impl Serializable for g_f64::DVec3 {
         }
     }
 }
-impl Serializable for g_f64::DVec4 {
+impl Exportable for g_f64::DVec4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(self.to_array()))
     }
@@ -721,7 +721,7 @@ impl Serializable for g_f64::DVec4 {
         }
     }
 }
-impl Serializable for g_f64::DMat2 {
+impl Exportable for g_f64::DMat2 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.x_axis.to_value(), self.y_axis.to_value()]))
     }
@@ -738,7 +738,7 @@ impl Serializable for g_f64::DMat2 {
         }
     }
 }
-impl Serializable for g_f64::DMat3 {
+impl Exportable for g_f64::DMat3 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.x_axis.to_value(), self.y_axis.to_value(), self.z_axis.to_value()]))
     }
@@ -755,7 +755,7 @@ impl Serializable for g_f64::DMat3 {
         }
     }
 }
-impl Serializable for g_f64::DMat4 {
+impl Exportable for g_f64::DMat4 {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.x_axis.to_value(), self.y_axis.to_value(), self.z_axis.to_value(), self.w_axis.to_value()]))
     }
@@ -775,7 +775,7 @@ impl Serializable for g_f64::DMat4 {
         }
     }
 }
-impl Serializable for g_f64::DQuat {
+impl Exportable for g_f64::DQuat {
     fn to_value(&self) -> toml::Value {
         toml::Value::Array(toml::Array::from_iter(vec![self.x, self.y, self.z, self.w]))
     }
@@ -792,7 +792,7 @@ impl Serializable for g_f64::DQuat {
         }
     }
 }
-impl Serializable for g_f64::DAffine2 {
+impl Exportable for g_f64::DAffine2 {
     fn to_value(&self) -> toml_edit::Value {
         let mut table: toml::InlineTable = toml::InlineTable::new();
                 table.insert("matrix2",     self.matrix2.to_value());
@@ -810,7 +810,7 @@ impl Serializable for g_f64::DAffine2 {
         ))
     }
 }
-impl Serializable for g_f64::DAffine3 {
+impl Exportable for g_f64::DAffine3 {
     fn to_value(&self) -> toml_edit::Value {
         let mut table: toml::InlineTable = toml::InlineTable::new();
                 table.insert("matrix3",     self.matrix3.to_value());

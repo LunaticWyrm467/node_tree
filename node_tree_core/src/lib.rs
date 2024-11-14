@@ -22,39 +22,52 @@
 //! An extendable system made up of autonomous execution services known as nodes organized in a tree of processes. Inspired by Godot! 
 //!
 //! A simple node implementation will look like the following:
-//! ```rust
+//! ```rust, ignore
 //! use node_tree::prelude::*;
-//!
-//!
-//! #[derive(Debug, Clone, Abstract, Register)] // Nodes require `Debug` and `Clone`.
-//! pub struct NodeA {
-//!     base: NodeBase   // Required for Nodes.
-//! }
-//! 
-//! impl NodeA {
-//!     fn new(name: String) -> Self {
-//!         NodeA { base: NodeBase::new(name) }
-//!     }
-//! }
-//!
-//! impl Node for NodeA {
-//!     // feel free to implement `loaded()`, `ready()`, `process()`, `terminal()` and/or `process_mode()`
-//!     // here.
-//! }
-//! ```
-//!
-//! Or with the `class!` macro, you could have an even simpler node declaration:
-//! ```rust
-//! use node_tree::prelude::*;
-//!
 //!
 //! class! {
-//!     pub dec NodeA;
+//!     
+//!     /// Documentation and attributes are supported!
+//!     pub dec NodeName;
+//!     
+//!     /// A signal can be connected to node functions and emitted.
+//!     /// Safety is guaranteed via the scene tree.
+//!     pub sig on_event(param_name: Type, ..);
 //!
-//!     // See the class! documentation for how you can implement custom fields, functions, and
-//!     // hooks such as `ready()` or `process()`.
+//!     /// Constants are supported.
+//!     const SOME_CONST: &str = "Hello";
 //!
-//!     // NodeBase initialization and attribute/derive macros are implemented for you!
+//!     /// Fields can be defined like so, with default or without default values.
+//!     let field_uninit:      u8;
+//!     let field_initialized: String = "These are not constant expressions!".to_string();
+//!
+//!     // Fields can have special attributes, like so:
+//!     default let field_default: u8; // Will automatically initialize to zero.
+//!     unique  let field_unique: *mut c_void; // When cloned or serialized, this will safetly be initialized as a `None` value.
+//!
+//!     // Exportable fields will be saved and loaded from whenever a node scene is serialized.
+//!     // Note: All exported types will need to implement the `Exportable` trait.
+//!     export         let some_parameter: String;
+//!     export default let some_parameter_default: bool;
+//!
+//!     // Hooks are any system functions that can be overridden.
+//!     // This include the constructor `_init()`, `loaded()`, `ready()`, `process()`, `terminal()`, and `process_mode()`.
+//!
+//!     /// The constructor may only need to be implemented if there exists fields that do not have
+//!     /// a default value.
+//!     /// Note that this macro will automatically create a `new()` invokation, even without a
+//!     /// predefined `_init()` hook. All attributes given to this hook will be transferred to the
+//!     /// `new()` function.
+//!     hk _init(starter_value: u8) {
+//!         
+//!         // Initialize a value by creating a variable with the same field name:
+//!         let field_uninit: u8 = starter_value;
+//!     }
+//!
+//!     /// Functions can be declared as per usual.
+//!     fn foo(bar: Type) -> Type {
+//!         todo!();
+//!     }
 //! }
 //! ```
 
@@ -71,9 +84,9 @@ pub mod prelude {
     
     pub use node_tree_derive::{ Abstract, Register, Tree, scene, connect, class };
     pub use crate::structs::{
-        cloneable_types::{ Doc, Eoc, Voc },
         logger::{ LoggerVerbosity, Log },
         node_base::NodeBase,
+        node_field::{ Field, ExportableField, UniqueField, DefaultField },
         node_path::NodePath,
         node_tree_base::{ NodeTreeBase, TreeStatus, TreeProcess, ProcessMode, TerminationReason, initialize_base },
         tree_pointer::{ Tp, TpDyn },
@@ -85,7 +98,7 @@ pub mod prelude {
     };
     pub use crate::traits::{
         node::{ Node, NodeAbstract },
-        serializable::Serializable,
+        exportable::{ Voidable, Exportable },
         registered::Registered,
         node_tree::NodeTree,
         instanceable::Instanceable

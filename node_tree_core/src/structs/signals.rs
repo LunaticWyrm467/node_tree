@@ -29,7 +29,11 @@
 use std::mem;
 use std::sync::{ Arc, Mutex, MutexGuard };
 
+use toml_edit as toml;
+
 use crate::structs::rid::{ RID, RIDHolder };
+use crate::traits::exportable::{ Voidable, Exportable };
+use crate::traits::element::Element;
 
 
 /// Defines the nature of a connection.
@@ -123,13 +127,14 @@ impl <T> Signal<T> {
     }
     
     /// Emits the signal, calling all connected hooks.
-    pub fn emit(&self, parameters: T) {
+    pub fn emit<E: Element<T>>(&self, parameters: E) {
         let mut hooks:           MutexGuard<EventHandler<T>> = self.hooks.lock().unwrap();
         let mut removed_signals: Vec<RID>                    = Vec::with_capacity(hooks.len());
+        let     parameters:      &T                          = parameters.as_inner();
 
         for (&rid, &(hook, mode)) in hooks.iter_enumerated() {
             unsafe {
-                (*hook)(&parameters);
+                (*hook)(parameters);
             }
 
             match mode {
@@ -150,8 +155,32 @@ impl <T> Signal<T> {
     }
 }
 
+impl <T> Clone for Signal<T> {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
 impl <T> Default for Signal<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl <T> Voidable for Signal<T> {
+    fn void() -> Self {
+        Self::new()
+    }
+}
+
+impl <T> Exportable for Signal<T> {
+    unsafe fn is_ghost_export(&self) -> bool { true }
+
+    fn to_value(&self) -> toml::Value {
+        unimplemented!()
+    }
+
+    fn from_value(_value: toml::Value) -> Option<Self> where Self: Sized {
+        unimplemented!()
     }
 }
