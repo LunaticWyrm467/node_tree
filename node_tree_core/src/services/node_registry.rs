@@ -70,7 +70,6 @@ use crate::traits::exportable::Exportable;
 ///     Box::new(node)
 /// }
 /// ```
-//#[dynamic]
 static mut NODE_REGISTRY: Option<Arc<Registry>> = None;
 
 /// Used as a alias for a map containing the unserialized fields of a node, along with its associated values.
@@ -96,6 +95,7 @@ unsafe impl Sync for Registry {}
 /// This should only be called from the main thread or from one thread at a time before the main
 /// function is invoked via `ctor`.
 pub unsafe fn register_deserializer(name: Box<str>, deserializer: impl Fn(SFieldMap) -> Result<Box<dyn Node>, String> + 'static) {
+    #![allow(static_mut_refs)] // SAFETY: Only modified during initialization before main.
     if NODE_REGISTRY.is_none() {
         NODE_REGISTRY = Some(Arc::new(Registry { registry: DashMap::new() }));
     }
@@ -104,6 +104,7 @@ pub unsafe fn register_deserializer(name: Box<str>, deserializer: impl Fn(SField
 
 /// Takes a `SFieldMap` and deserializes it into a `Node` with a bare `NodeBase`.
 pub fn deserialize(name: &str, owned_state: SFieldMap) -> Result<Box<dyn Node>, String> {
+    #![allow(static_mut_refs)] // SAFETY: Only modified during initialization before main.
     
     // Safety:
     // This does not mutate state and `register_deserializer`, which does mutate state, is marked

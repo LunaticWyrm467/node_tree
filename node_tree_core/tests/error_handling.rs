@@ -7,11 +7,11 @@ class! {
 
     hk ready(&mut self) {
         if self.depth() == 2 && self.name() == "NodeA1" {
-            self.post(Log::Warn("Failed to Initialize!"));
+            warn!(self, "Failed to Initialize!");
         }
         
         if self.depth() == 1 && self.name() == "NodeA" {
-            self.get_node::<NodeA>(NodePath::from_str("Foo/Bar")).unwrap();
+            self.get_node::<NodeA>(nodepath!("Foo/Bar")).unwrap();
         }
     }
 }

@@ -103,6 +103,7 @@ pub mod prelude {
         node_tree::NodeTree,
         instanceable::Instanceable
     };
+    pub use crate::{ nodepath, debug, info, warn, error };
 }
 
 pub use ctor;

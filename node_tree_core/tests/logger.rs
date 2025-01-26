@@ -17,9 +17,7 @@ pub fn test_logger_bare() -> () {
 pub fn test_logger_tree() -> () {
     
     // Enable backtrace.
-    unsafe {
-        std::env::set_var("RUST_BACKTRACE", "1");
-    }
+    std::env::set_var("RUST_BACKTRACE", "1");
     
     // Create the tree.
     let     root: LoggerNode      = LoggerNode::new("Root".to_string());
@@ -62,11 +60,11 @@ class! {
         };
 
         if self.name() == "3_Node2" && &grandparent_name == "1_Node" {
-            self.post(Log::Warn("Simulating warning!"));
+            warn!(self, "Simulating warning!");
         }
 
         if self.name() == "3_Node2" && &grandparent_name == "1_Node2"{
-            self.post(Log::Panic("Simulating panic!"));
+            error!(self, "Simulating panic!");
         }
     }
 }

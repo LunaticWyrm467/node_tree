@@ -23,7 +23,7 @@ class! {
     }
 
     fn listener(&self, count: &u8) {
-        self.post(Log::Warn(&format!("Count is {count}")));
+        warn!(self, "Count is {count}");
     }
 }
 
@@ -33,7 +33,7 @@ class! {
 
     fn listener(&self, count: &u8) {
         if *count == 3 {
-            self.post(Log::Panic("This was successful!"));
+            error!(self, "This was successful!");
             panic!();
         }
     }

@@ -66,7 +66,7 @@ class! {
 
         // Using the NodePath and TreePointer, you can reference other nodes in the NodeTree from this node.
         if self.is_root() {
-            match self.get_node::<NodeA>(NodePath::from_str("1_Node/2_Node1/3_Node2")).to_option() {
+            match self.get_node::<NodeA>(nodepath!("1_Node/2_Node1/3_Node2")).to_option() {
                 Some(node) => println!("{:?}", node),
                 None       => ()
             }
@@ -97,7 +97,7 @@ class! {
 Finally, in order to activate our `NodeTree`, we must instance the root `Node` and feed it into the `NodeTree` constructor.
 ```rust
 // ...previous implementations
-use node_tree::trees::tree_simple::TreeSimple;
+use node_tree::trees::TreeSimple;
 
 
 fn main() -> () {
@@ -118,24 +118,24 @@ use node_tree::prelude::*;
 
 
 let child_scene: NodeScene = scene! {
-    NodeA("2_Node", 3) { // Arguments can be fed right in the scene! macro.
-        NodeA("3_Node", 4),
-        NodeA("3_Node", 5),
-        NodeA("3_Node", 6) {
-            NodeA("4_Node", 7),
-            NodeA("4_Node", 8)
+    NodeA(3): "2_Node" { // Arguments can be fed right in the scene! macro, followed by the name (optional) and children.
+        NodeA(4): "3_Node",
+        NodeA(5): "3_Node",
+        NodeA(6): "3_Node" {
+            NodeA(7): "4_Node",
+            NodeA(8): "4_Node"
         }
     }
 };
 let parent_scene: NodeScene = scene! {
-    NodeA("1_Node", 2) {
+    NodeA(2): "1_Node" {
         $child_scene, // You can use `$` to reference other scenes as children.
         $child_scene,
         $child_scene,
     }
 };
 let scene: NodeScene = scene! {
-    NodeA("Root", 1) {
+    NodeA(1): "Root" {
         $parent_scene,
         $parent_scene,
         $parent_scene,
@@ -163,7 +163,7 @@ assert_eq!(scene.structural_hash(), loaded_scene.structural_hash());
 Logging is also supported. Here is an example setup with an output of a warning and a crash. Note that the crash header/footer are customizable, and that the output is actually colored in a real terminal.
 ```rust
 use node_tree::prelude::*;
-use node_tree::trees::tree_simple::TreeSimple;
+use node_tree::trees::TreeSimple;
 
 
 class! {
@@ -171,11 +171,11 @@ class! {
 
     hk ready(&mut self) {
         if self.depth() == 2 && self.name() == "NodeA1" {
-            self.post(Log::Warn("Failed to Initialize!"));
+            warn!(self, "Failed to Initialize!");
         }
         
         if self.depth() == 1 && self.name() == "NodeA" {
-            self.get_node::<NodeA>(NodePath::from_str("Foo/Bar")).unwrap();
+            self.get_node::<NodeA>(nodepath!("Foo/Bar")).unwrap();
         }
     }
 }
@@ -247,20 +247,6 @@ fn main() {
 
     let mut tree: Box<TreeSimple> = TreeSimple::new(scene, LoggerVerbosity::All);
     while tree.process().is_active() {}
-}
-```
-
-## About Cloning
-All nodes are expected to implement the `Clone` trait since there are a few implementations that depend on it, such as `NodeScene`. However, it is possible to mark a field of a node so that it either has a special clone attribute or is uncloneable via provided types by this crate:
-```rust
-use node_tree::prelude::{ Doc, Eoc, Voc }; // All of these types implement Deref & DerefMut!
-
-#[derive(Debug, Clone, Abstract)]
-pub struct SpecializedNode {
-    base:   NodeBase,
-    resets: Doc<YourUniqueTypeHere>,  // Grabs the ::default() of your type when cloned!
-    errors: Eoc<YourUncloneableType>, // Panics when cloned! Good as an assertion.
-    voids:  Voc<YourUnownableType>    // Doesn't panic when cloned, but the cloned copy is unusable.
 }
 ```
 

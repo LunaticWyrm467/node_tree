@@ -479,8 +479,8 @@ impl NodeTreeBase {
 
     /// Gets a node's RID via either an absolute path or a name if it is valid, or None if it is
     /// not.
-    pub fn get_node_rid<P: NodeGetter>(&self, absolute_path: P) -> Option<RID> {
-        absolute_path.get_from(self)
+    pub fn get_node_rid<P: NodeGetter>(&self, absolute_path: P, caller: Option<RID>) -> Option<RID> {
+        absolute_path.get_from(self, caller)
     }
 
     /// Gets the node's identity.
@@ -519,13 +519,13 @@ impl NodeTreeBase {
 
 
 impl <'a> NodeGetter for &'a str {
-    fn get_from(&self, tree: &NodeTreeBase) -> Option<RID> {
-        self.to_string().get_from(tree)
+    fn get_from(&self, tree: &NodeTreeBase, caller: Option<RID>) -> Option<RID> {
+        self.to_string().get_from(tree, caller)
     }
 }
 
 impl NodeGetter for String {
-    fn get_from(&self, tree: &NodeTreeBase) -> Option<RID> {
+    fn get_from(&self, tree: &NodeTreeBase, _caller: Option<RID>) -> Option<RID> {
         tree.singletons.get(self).copied()
     }
 }

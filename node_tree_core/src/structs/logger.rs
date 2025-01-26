@@ -271,3 +271,78 @@ Exit Code: {}
         &self.log
     }
 }
+
+
+/*
+ * Logger
+ *      Macros
+ */
+
+
+/// A simple macro which is compatible with Rust's format syntax used in macros like `print!`,
+/// `println!`, and `format!`.
+/// Prints debug info to the logger.
+///
+/// # Note
+/// The first argument should be `self`.
+#[macro_export]
+macro_rules! debug {
+    ($self:ident, $fmt_str:literal) => {{
+        $self.post(Log::Debug(&format!($fmt_str)))
+    }};
+
+    ($self:ident, $fmt_str:literal, $($args:expr),*) => {{
+        $self.post(Log::Debug(&format!($fmt_str, $($args),*)))
+    }};
+}
+
+/// A simple macro which is compatible with Rust's format syntax used in macros like `print!`,
+/// `println!`, and `format!`.
+/// Prints info to the logger.
+///
+/// # Note
+/// The first argument should be `self`.
+#[macro_export]
+macro_rules! info {
+    ($self:ident, $fmt_str:literal) => {{
+        $self.post(Log::Info(&format!($fmt_str)))
+    }};
+
+    ($self:ident, $fmt_str:literal, $($args:expr),*) => {{
+        $self.post(Log::Info(&format!($fmt_str, $($args),*)))
+    }};
+}
+
+/// A simple macro which is compatible with Rust's format syntax used in macros like `print!`,
+/// `println!`, and `format!`.
+/// Prints a warning to the logger.
+///
+/// # Note
+/// The first argument should be `self`.
+#[macro_export]
+macro_rules! warn {
+    ($self:ident, $fmt_str:literal) => {{
+        $self.post(Log::Warn(&format!($fmt_str)))
+    }};
+
+    ($self:ident, $fmt_str:literal, $($args:expr),*) => {{
+        $self.post(Log::Warn(&format!($fmt_str, $($args),*)))
+    }};
+}
+
+/// A simple macro which is compatible with Rust's format syntax used in macros like `print!`,
+/// `println!`, and `format!`.
+/// Prints a panic to the logger and causes a crash.
+///
+/// # Note
+/// The first argument should be `self`.
+#[macro_export]
+macro_rules! error {
+    ($self:ident, $fmt_str:literal) => {{
+        $self.post(Log::Panic(&format!($fmt_str)))
+    }};
+
+    ($self:ident, $fmt_str:literal, $($args:expr),*) => {{
+        $self.post(Log::Panic(&format!($fmt_str, $($args),*)))
+    }};
+}

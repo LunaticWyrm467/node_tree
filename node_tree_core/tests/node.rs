@@ -1,31 +1,29 @@
-use node_tree::trees::tree_simple::TreeSimple;
+use node_tree::trees::TreeSimple;
 use node_tree::prelude::*;
 
 #[test]
 fn test_node_integration() {
     
     // Enable backtrace.
-    unsafe {
-        std::env::set_var("RUST_BACKTRACE", "1");
-    }
+    std::env::set_var("RUST_BACKTRACE", "1");
 
     // Initialize the NodeScene.
     let child_scene: NodeScene = scene! {
-        NodeA("2_Node", 3) {
-            NodeA("3_Node", 4),
-            NodeA("3_Node", 5),
-            NodeA("3_Node", 6)
+        NodeA(3): "2_Node" {
+            NodeA(4): "3_Node",
+            NodeA(5): "3_Node",
+            NodeA(6): "3_Node"
         }
     };
     let parent_scene: NodeScene = scene! {
-        NodeA("1_Node", 2) {
+        NodeA(2): "1_Node" {
             $child_scene,
             $child_scene,
             $child_scene,
         }
     };
     let scene: NodeScene = scene! {
-        NodeA("Root", 1) {
+        NodeA(1): "Root" {
             $parent_scene,
             $parent_scene,
             $parent_scene,
@@ -41,17 +39,11 @@ fn test_node_integration() {
 class! {
     dec NodeA;
 
-    let  given_name:  String;
     let _example_arg: u8;
 
-    hk _init(name: &str, _example_arg: u8) {
-        let given_name: String = name.to_string();
-    }
+    hk _init(_example_arg: u8) {}
 
     hk ready(&mut self) {
-        let name: &str = &self.given_name.clone();
-        self.set_name(name);
-
         if self.is_root() {
             println!("{:?}", self.children());
         }
@@ -60,7 +52,7 @@ class! {
     hk process(&mut self, delta: f32) {
         println!("{} | {}", self.name(), 1f32 / delta);
         if self.is_root() {
-            match self.get_node::<NodeA>(NodePath::from_str("1_Node/2_Node1/3_Node2")).to_option() {
+            match self.get_node::<NodeA>(nodepath!("1_Node/2_Node1/3_Node2")).to_option() {
                 Some(node) => println!("{:?}", node),
                 None       => ()
             }

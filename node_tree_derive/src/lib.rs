@@ -304,6 +304,7 @@ enum SceneNode {
     Node {
         node_type: syn::Ident,
         params:    Option<punc::Punctuated<syn::Expr, tok::Comma>>,
+        name:      Option<syn::LitStr>,
         children:  Vec<SceneNode>,
     }
 }
@@ -327,8 +328,16 @@ impl Parse for SceneNode {
                 None
             };
 
+            // Parse a name if given.
+            let mut name: Option<syn::LitStr> = None;
+            if input.peek(tok::Colon) {
+                input.parse::<tok::Colon>()?;
+                name = Some(input.parse()?);
+            }
+            
+            // Parse children.
             let mut children: Vec<SceneNode> = Vec::new();
-            if input.peek(syn::token::Brace) {
+            if input.peek(tok::Brace) {
                 let content;
                 syn::braced!(content in input);
 
@@ -343,6 +352,7 @@ impl Parse for SceneNode {
             Ok(SceneNode::Node {
                 node_type,
                 params,
+                name,
                 children,
             })
         }
@@ -356,16 +366,27 @@ fn generate_node(node: &SceneNode) -> TokenStream2 {
                 #with.clone()
             }
         },
-        SceneNode::Node { node_type, params, children } => {
+        SceneNode::Node { node_type, params, name, children } => {
             let params: TokenStream2 = match params {
                 Some(p) => quote! { (#p) },
                 None    => quote! { () },
+            };
+            let name_set: TokenStream2 = match name {
+                None       => quote! {},
+                Some(name) => quote! {
+                    unsafe {
+                        node.set_name_unchecked(#name);
+                    }
+                }
             };
             let children: Vec<TokenStream2> = children.iter().map(generate_node).collect();
 
             quote! {
                 {
-                    let mut scene: NodeScene = NodeScene::new(#node_type::new #params);
+                    let mut node: #node_type = #node_type::new #params;
+                    #name_set
+                                        
+                    let mut scene: NodeScene = NodeScene::new(node);
                     #(
                         scene.append(#children);
                     )*
@@ -393,6 +414,13 @@ fn generate_node(node: &SceneNode) -> TokenStream2 {
 ///     }
 /// };
 ///
+/// let named_scene: NodeScene = scene! {
+///     Owner: "Owner" {
+///         Child: "ChildA",
+///         Child: "ChildB"
+///     }
+/// };
+///
 /// let complex_scene: NodeScene = scene! {
 ///     RootNode {
 ///         NodeA,
@@ -401,7 +429,7 @@ fn generate_node(node: &SceneNode) -> TokenStream2 {
 ///             $scene // Links a scene with the name following `$` to that position...
 ///         }
 ///     }
-/// }
+/// };
 /// ```
 #[proc_macro]
 pub fn scene(input: TokenStream) -> TokenStream {

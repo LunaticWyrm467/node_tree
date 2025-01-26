@@ -22,7 +22,7 @@ class! {
     dec NodeC;
 
     fn call_this(&self) {
-        self.post(Log::Info("Finished Successfully!"));
+        info!(self, "Finished Successfully!");
         self.tree_mut().unwrap().queue_termination();
     }
 }

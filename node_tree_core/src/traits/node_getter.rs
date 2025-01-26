@@ -32,5 +32,5 @@ use crate::structs::{ node_tree_base::NodeTreeBase, rid::RID };
 pub trait NodeGetter: Debug {
     
     /// A function that must be implemented per compatible type.
-    fn get_from(&self, tree: &NodeTreeBase) -> Option<RID>;
+    fn get_from(&self, tree: &NodeTreeBase, caller: Option<RID>) -> Option<RID>;
 }

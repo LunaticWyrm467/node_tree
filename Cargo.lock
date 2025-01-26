@@ -193,7 +193,7 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "node_tree"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "chrono",
  "ctor",
@@ -205,7 +205,7 @@ dependencies = [
 
 [[package]]
 name = "node_tree_derive"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "proc-macro2",
  "quote",

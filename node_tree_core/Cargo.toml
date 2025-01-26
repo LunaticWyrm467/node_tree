@@ -1,6 +1,6 @@
 [package]
 name         = "node_tree"
-version      = "0.10.0"
+version      = "0.11.0"
 edition      = "2021"
 rust-version = "1.78"
 
@@ -19,7 +19,7 @@ Inspired by Godot!
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-node_tree_derive = { path = "../node_tree_derive", version = "0.8.0" }
+node_tree_derive = { path = "../node_tree_derive", version = "0.9.0" }
 chrono           = "0.4.38"
 dashmap          = "6.1.0"
 ctor             = "0.2.8"

@@ -44,9 +44,7 @@ class! {
 fn test_writing_to_disk() {
 
     // Set this for debugging.
-    unsafe {
-        env::set_var("RUST_BACKTRACE", "1");
-    }
+    env::set_var("RUST_BACKTRACE", "1");
     
     // Create a scene and save it.
     let scene: NodeScene = scene! {
