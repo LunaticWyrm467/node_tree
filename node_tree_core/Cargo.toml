@@ -1,6 +1,6 @@
 [package]
 name         = "node_tree"
-version      = "0.11.0"
+version      = "0.12.0"
 edition      = "2021"
 rust-version = "1.78"
 
@@ -22,9 +22,10 @@ license = "MIT OR Apache-2.0"
 node_tree_derive = { path = "../node_tree_derive", version = "0.9.0" }
 chrono           = "0.4.38"
 dashmap          = "6.1.0"
-ctor             = "0.2.8"
+ctor             = "0.2.9" # https://github.com/mmastrac/rust-ctor/issues/309
 toml_edit        = "0.22.22"
 glam             = { version = "0.29.*", optional = true }
+thiserror        = "2.0.12"
 
 [features]
 default = []

@@ -27,12 +27,14 @@
 
 use std::{ rc::Rc, sync::Mutex };
 
+use thiserror::Error;
+
 use super::{
     logger::Log,
     node_path::{ PathSeg, NodePath },
     node_scene::NodeScene,
     node_tree_base::{ NodeTreeBase, TerminationReason },
-    tree_pointer::{ Tp, TpDyn },
+    tree_pointer::{ TPError, Tp, TpDyn },
     tree_result::TreeResult,
     rid::RID
 };
@@ -41,12 +43,52 @@ use crate::traits::{ node::Node, node_tree::NodeTree, node_getter::NodeGetter, i
 use crate::utils::functions::ensure_unique_name;
 
 
+/*
+ * Node Base
+ *      Error Type
+ */
+
+
+/// Used to articulate any errors that may occur through the usage of any node implementation.
+#[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum NodeError {
+
+    #[error("Index {index} was out of the range of this node's children count of {children_count}")]
+    IndexOutOfRange { index: usize, children_count: usize },
+
+    #[error("The path \"{0}\" is invalid")]
+    InvalidPath(Box<str>),
+
+    #[error("The root path \"{0}\" is invalid")]
+    InvalidRootPath(Box<str>),
+
+    #[error("This node has no parent")]
+    NoParent,
+
+    #[error("The following Tree Pointer error occured: {0:?}")]
+    TPError(TPError)
+}
+
+
+/*
+ * Node Status
+ *      Type
+ */
+
+
 #[derive(Debug, Clone)]
 pub enum NodeStatus {
     Normal,
     JustWarned(String),
     JustPanicked(String)
 }
+
+
+/*
+ * Node Base
+ *      Type
+ */
+
 
 /// Holds all of the node's internal information such as its name, children, parent, owner, and
 /// owning `NodeTree`.
@@ -307,18 +349,19 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_child<T: Node>(&self, i: usize) -> TreeResult<Tp<T>> {
+    pub fn get_child<T: Node>(&self, i: usize) -> TreeResult<Tp<T>, NodeError> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
 
         if i >= self.num_children() {
             unsafe {
-                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(format!("Index {i} was out of the range of this node's children count of {}", self.num_children())))
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(NodeError::IndexOutOfRange { index: i, children_count: self.num_children() }))
             }
         } else {
             unsafe {
                 Tp::new(self.tree.unwrap_unchecked(), self.rid, self.children[i])
+                    .map_err(|err| NodeError::TPError(err))
             }
         }
     }
@@ -328,18 +371,19 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_child_dyn(&self, i: usize) -> TreeResult<TpDyn> {
+    pub fn get_child_dyn(&self, i: usize) -> TreeResult<TpDyn, NodeError> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
 
         if i >= self.num_children() {
             unsafe {
-                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(format!("Index {i} was out of the range of this node's children count of {}", self.num_children())))
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(NodeError::IndexOutOfRange { index: i, children_count: self.num_children() }))
             }
         } else {
             unsafe {
                 TpDyn::new(self.tree.unwrap_unchecked(), self.rid, self.children[i])
+                    .map_err(|err| NodeError::TPError(err))
             }
         }
     }
@@ -366,7 +410,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_node<T: Node>(&self, path: impl NodeGetter) -> TreeResult<Tp<T>> {
+    pub fn get_node<T: Node>(&self, path: impl NodeGetter) -> TreeResult<Tp<T>, NodeError> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -376,10 +420,11 @@ impl NodeBase {
             Some(node_rid) => {
                 unsafe {
                     Tp::new(self.tree.unwrap_unchecked(), self.rid, node_rid)
+                        .map_err(|err| NodeError::TPError(err))
                 }
             },
             None => unsafe {
-                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(format!("The path {path_str:?} is invalid")))
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(NodeError::InvalidPath(path_str.into())))
             }
         }
     }
@@ -393,7 +438,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn get_node_dyn(&self, path: impl NodeGetter) -> TreeResult<TpDyn> {
+    pub fn get_node_dyn(&self, path: impl NodeGetter) -> TreeResult<TpDyn, NodeError> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -403,10 +448,11 @@ impl NodeBase {
             Some(node_rid) => {
                 unsafe {
                     TpDyn::new(self.tree.unwrap_unchecked(), self.rid, node_rid)
+                        .map_err(|err| NodeError::TPError(err))
                 }
             },
             None => unsafe {
-                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(format!("The root path {path_str:?} is invalid")))
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(NodeError::InvalidRootPath(path_str.into())))
             }
         }
     }
@@ -692,13 +738,14 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn owner<T: Node>(&self) -> TreeResult<Tp<T>> {
+    pub fn owner<T: Node>(&self) -> TreeResult<Tp<T>, NodeError> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
         
         unsafe {
             Tp::new(self.tree.unwrap_unchecked(), self.rid, self.owner.unwrap_unchecked())
+                .map_err(|err| NodeError::TPError(err))
         }
     }
 
@@ -751,7 +798,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn parent<T: Node>(&self) -> TreeResult<Tp<T>> {
+    pub fn parent<T: Node>(&self) -> TreeResult<Tp<T>, NodeError> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -760,10 +807,11 @@ impl NodeBase {
             Some(parent) => {
                 unsafe {
                     Tp::new(self.tree.unwrap_unchecked(), self.rid, parent)
+                        .map_err(|err| NodeError::TPError(err))
                 }
             },
             None => unsafe {
-                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err("This node has no parent".to_string()))
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(NodeError::NoParent))
             }
         }
     }
@@ -773,7 +821,7 @@ impl NodeBase {
     ///
     /// # Panics
     /// Panics if this Node is not connected to a `NodeTree`.
-    pub fn parent_dyn(&self) -> TreeResult<TpDyn> {
+    pub fn parent_dyn(&self) -> TreeResult<TpDyn, NodeError> {
         if self.tree().is_none() {
             panic!("Cannot get a node from a node that is not a part of a NodeTree!");
         }
@@ -782,10 +830,11 @@ impl NodeBase {
             Some(parent) => {
                 unsafe {
                     TpDyn::new(self.tree.unwrap_unchecked(), self.rid, parent)
+                        .map_err(|err| NodeError::TPError(err))
                 }
             },
             None => unsafe {
-                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err("This node has no parent".to_string()))
+                TreeResult::new(self.tree.unwrap_unchecked(), self.rid, Err(NodeError::NoParent))
             }
         }
     }

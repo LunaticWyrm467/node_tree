@@ -85,11 +85,11 @@ pub mod prelude {
     pub use node_tree_derive::{ Abstract, Register, Tree, scene, connect, class };
     pub use crate::structs::{
         logger::{ LoggerVerbosity, Log },
-        node_base::NodeBase,
+        node_base::{ NodeError, NodeBase },
         node_field::{ Field, ExportableField, UniqueField, DefaultField },
         node_path::NodePath,
         node_tree_base::{ NodeTreeBase, TreeStatus, TreeProcess, ProcessMode, TerminationReason, initialize_base },
-        tree_pointer::{ Tp, TpDyn },
+        tree_pointer::{ TPError, Tp, TpDyn },
         tree_option::TreeOption,
         tree_result::TreeResult,
         node_scene::NodeScene,

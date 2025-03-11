@@ -330,8 +330,8 @@ impl Clone for NodeScene {
             node_new.set_rid(node_original.rid());
             node_new.set_name(node_original.name());
 
-            Box::into_raw(node_original); // Convert the box back so that its instance isn't deallocated when dropped.
-            Box::into_raw(node_new)
+            let _ = Box::into_raw(node_original); // Convert the box back so that its instance isn't deallocated when dropped.
+                    Box::into_raw(node_new)
         };
 
         // Recursively clone children

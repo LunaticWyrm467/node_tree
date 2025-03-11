@@ -250,7 +250,7 @@ impl <'a, T> TreeOption<'a, T> {
     /// result of a function call, it is recommended to use `ok_or_else`, which is
     /// lazily evaluated.
     #[inline]
-    pub fn ok_or(self, err: String) -> TreeResult<'a, T> {
+    pub fn ok_or<E>(self, err: E) -> TreeResult<'a, T, E> {
         unsafe {
             TreeResult::new(self.tree, self.owner, self.object.ok_or(err))
         }
@@ -258,7 +258,7 @@ impl <'a, T> TreeOption<'a, T> {
 
     /// Transforms the `TreeOption<T>` into a `TreeResult<T, E>`, mapping `Some(v)` to
     /// `Ok(v)` and `None` to `Err(err())`.
-    pub fn ok_or_else<F: FnOnce() -> String>(self, err: F) -> TreeResult<'a, T> {
+    pub fn ok_or_else<E, F: FnOnce() -> E>(self, err: F) -> TreeResult<'a, T, E> {
         unsafe {
             TreeResult::new(self.tree, self.owner, self.object.ok_or_else(err))
         }
@@ -567,7 +567,7 @@ impl <'a, T> TreeOption<'a, &mut T> {
     { self.map(|x| x.to_owned()) }
 }
 
-impl <'a, 'b, T> TreeOption<'a, TreeResult<'b, T>> {
+impl <'a, 'b, T, E> TreeOption<'a, TreeResult<'b, T, E>> {
     
     /// Transposes an `TreeOption` of a `TreeResult` into a `TreeResult` of an `TreeOption`.
     ///
@@ -575,7 +575,7 @@ impl <'a, 'b, T> TreeOption<'a, TreeResult<'b, T>> {
     /// <code>Some\(Ok\(\_))</code> and <code>Some\(Err\(\_))</code> will be mapped to
     /// <code>Ok\(Some\(\_))</code> and <code>Err\(\_)</code>.
     #[inline]
-    pub fn transpose(self) -> TreeResult<'a, TreeOption<'a, T>> {
+    pub fn transpose(self) -> TreeResult<'a, TreeOption<'a, T>, E> {
         match self.object {
             Some(inner) => {
                 match inner.to_result() {
