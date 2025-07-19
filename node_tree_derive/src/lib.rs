@@ -28,9 +28,14 @@
 
 extern crate proc_macro;
 
+mod parser;
+mod generator;
+
+use parser::*;
+use generator::*;
+
 use quote::quote;
-use syn::{ parenthesized, parse::{ Parse, ParseStream }, parse_macro_input, DeriveInput, Receiver, Token };
-use syn::token as tok;
+use syn::{ parse_macro_input, DeriveInput };
 use syn::punctuated as punc;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
@@ -84,7 +89,7 @@ pub fn r#abstract(input: TokenStream) -> TokenStream {
                 Box::new(self)
             }
 
-            fn as_any(&self) -> &dyn std::any::Any {
+            fn as_any_ref(&self) -> &dyn std::any::Any {
                 self
             }
 
@@ -123,7 +128,6 @@ pub fn r#abstract(input: TokenStream) -> TokenStream {
 /*
  * Register
  */
-
 
 
 #[proc_macro_derive(Register)]
@@ -197,7 +201,7 @@ pub fn derive_registered(input: TokenStream) -> TokenStream {
         }
         
         // Runs before main.
-        #[node_tree::ctor::ctor]
+        #[node_tree::startup::ctor]
         unsafe fn #static_name() {
             node_tree::services::node_registry::register_deserializer(std::any::type_name::<#name>().into(), Box::new(|s_field_map| {
                 let node: #name = #name::load_from_owned(s_field_map)?;
@@ -299,104 +303,6 @@ pub fn tree(input: TokenStream) -> TokenStream {
  */
 
 
-enum SceneNode {
-    Link (syn::Ident),
-    Node {
-        node_type: syn::Ident,
-        params:    Option<punc::Punctuated<syn::Expr, tok::Comma>>,
-        name:      Option<syn::LitStr>,
-        children:  Vec<SceneNode>,
-    }
-}
-
-impl Parse for SceneNode {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        
-        // Determine if this is a link or a node.
-        if input.peek(Token![$]) {
-            input.parse::<Token![$]>()?;
-            Ok(SceneNode::Link(input.parse()?))
-        } else {
-            let node_type: syn::Ident = input.parse()?;
-
-            // Parse optional parameters
-            let params: Option<punc::Punctuated<syn::Expr, tok::Comma>> = if input.peek(syn::token::Paren) {
-                let content;
-                syn::parenthesized!(content in input);
-                Some(punc::Punctuated::parse_terminated(&content)?)
-            } else {
-                None
-            };
-
-            // Parse a name if given.
-            let mut name: Option<syn::LitStr> = None;
-            if input.peek(tok::Colon) {
-                input.parse::<tok::Colon>()?;
-                name = Some(input.parse()?);
-            }
-            
-            // Parse children.
-            let mut children: Vec<SceneNode> = Vec::new();
-            if input.peek(tok::Brace) {
-                let content;
-                syn::braced!(content in input);
-
-                while !content.is_empty() {
-                    children.push(content.parse()?);
-                    if !content.is_empty() {
-                        content.parse::<Token![,]>()?;
-                    }
-                }
-            }
-
-            Ok(SceneNode::Node {
-                node_type,
-                params,
-                name,
-                children,
-            })
-        }
-    }
-}
-
-fn generate_node(node: &SceneNode) -> TokenStream2 {
-    match node {
-        SceneNode::Link(with) => {
-            quote! {
-                #with.clone()
-            }
-        },
-        SceneNode::Node { node_type, params, name, children } => {
-            let params: TokenStream2 = match params {
-                Some(p) => quote! { (#p) },
-                None    => quote! { () },
-            };
-            let name_set: TokenStream2 = match name {
-                None       => quote! {},
-                Some(name) => quote! {
-                    unsafe {
-                        node.set_name_unchecked(#name);
-                    }
-                }
-            };
-            let children: Vec<TokenStream2> = children.iter().map(generate_node).collect();
-
-            quote! {
-                {
-                    let mut node: #node_type = #node_type::new #params;
-                    #name_set
-                                        
-                    let mut scene: NodeScene = NodeScene::new(node);
-                    #(
-                        scene.append(#children);
-                    )*
-                    scene
-                }
-            }
-        }
-    }
-}
-
 /// A simple short-hand way of initializing `NodeScene`s quickly and elegantly.
 /// Here is an example of a `NodeScene` initialized in this manner:
 /// ```rust, ignore
@@ -445,305 +351,6 @@ pub fn scene(input: TokenStream) -> TokenStream {
  */
 
 
-struct Class {
-    name:    syn::Ident,
-    attribs: Vec<syn::Attribute>,
-    public:  bool,
-    signals: Vec<Signal>,
-    consts:  Vec<Const>,
-    fields:  Vec<Field>,
-    hooks:   Vec<Hook>,
-    funcs:   Vec<Func>
-}
-
-struct Signal {
-    name:    syn::Ident,
-    public:  bool,
-    attribs: Vec<syn::Attribute>,
-    args:    Vec<syn::Type>
-}
-
-struct Const {
-    attribs: Vec<syn::Attribute>,
-    public:  bool,
-    declare: syn::ItemConst
-}
-
-#[derive(PartialEq, Eq)]
-enum FieldKind {
-    Regular,
-    Export,
-    ExportDefault,
-    Unique,
-    Default
-}
-
-impl FieldKind {
-    
-    /// Returns whether a field supports a defualt initialization.
-    fn supports_default_init(&self) -> bool {
-        match self {
-            FieldKind::ExportDefault => true,
-            FieldKind::Default       => true,
-            _                        => false
-        }
-    }
-}
-
-struct Field {
-    name:    syn::Ident,
-    attribs: Vec<syn::Attribute>,
-    public:  bool,
-    ty:      syn::Type,
-    kind:    FieldKind,
-    init:    Option<syn::Expr>
-}
-
-struct Hook {
-    name:    syn::Ident,
-    attribs: Vec<syn::Attribute>,
-    sig:     Option<syn::Receiver>,
-    args:    Vec<syn::PatType>,
-    out:     Option<syn::Ident>,
-    body:    syn::Block
-}
-
-struct Func {
-    attribs: Vec<syn::Attribute>,
-    public:  bool,
-    declare: syn::ItemFn
-}
-
-
-impl Parse for Class {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-
-        // Determine any class attributes.
-        let class_attribs: Vec<syn::Attribute> = input.call(syn::Attribute::parse_outer)?;
-        
-        // Determine if this class is public.
-        let public: bool = if input.peek(Token![pub]) {
-            input.parse::<tok::Pub>()?;
-            true
-        } else {
-            false
-        };
-
-        // Parse the declaration statement.
-        let  class_dec:  syn::Ident = input.parse()?;
-        let  class_name: syn::Ident = input.parse()?;
-        let _semi_token: tok::Semi  = input.parse()?;
-        
-        if class_dec != "dec" {
-            return Err(syn::Error::new_spanned(class_dec, "Expected a class declaration starting with `dec`"));
-        }
-
-        // Go through the class's fields and hooks.
-        let mut signals: Vec<Signal> = Vec::new();
-        let mut consts:  Vec<Const>  = Vec::new();
-        let mut fields:  Vec<Field>  = Vec::new();
-        let mut hooks:   Vec<Hook>   = Vec::new();
-        let mut funcs:   Vec<Func>   = Vec::new();
-        
-        while !input.is_empty() {
-
-            // Parse any item attributes.
-            let item_attribs: Vec<syn::Attribute> = input.call(syn::Attribute::parse_outer)?;
-
-            // Check if the following statement is publicly visible:
-            let mut is_public: Option<tok::Pub> = None;
-            if input.peek(Token![pub]) {
-                is_public = Some(input.parse::<tok::Pub>()?);
-            }
-
-            // Parse the item kind or a unique statement keyword if there is one.
-            let mut item_kind:      FieldKind          = FieldKind::Regular;
-            let mut unique_starter: Option<syn::Ident> = None;
-            if input.peek(syn::Ident) {
-                let token:      syn::Ident = input.parse::<syn::Ident>()?;
-                let token_name: &str       = &token.to_string();
-                match token_name {
-                    "export" => {
-                        if input.peek(syn::Ident) {
-                            let next_token: syn::Ident = input.parse::<syn::Ident>()?;
-                            if &next_token.to_string() == "default" {
-                                item_kind = FieldKind::ExportDefault;   
-                            } else {
-                                return Err(syn::Error::new_spanned(next_token, "'export' only supports 'default' as a secondary attribute"));
-                            }
-                        } else {
-                            item_kind = FieldKind::Export;
-                        }
-                    },
-                    "unique"  => item_kind = FieldKind::Unique,
-                    "default" => item_kind = FieldKind::Default,
-                    _         => unique_starter = Some(token)
-                }
-            }
-
-            // Parse a custom statement.
-            if let Some(token) = unique_starter {
-                let token_name: &str = &token.to_string();
-                match token_name {
-                    "sig" => {
-                        if item_kind != FieldKind::Regular {
-                            return Err(syn::Error::new_spanned(token, "Signals cannot have field attributes"));
-                        }
-                        let signal_name: syn::Ident = input.parse()?;
-
-                        // Parse the arguments.
-                        let content;
-                        parenthesized!(content in input);
-
-                        let signal_args: Vec<syn::Type> = punc::Punctuated::<syn::FnArg, Token![,]>::parse_terminated(&content)?
-                            .into_iter()
-                            .map(|arg: syn::FnArg| {
-                                match arg {
-                                    syn::FnArg::Typed(pat)    => Ok(*pat.ty),
-                                    syn::FnArg::Receiver(rec) => Err(syn::Error::new_spanned(rec, "Signals cannot have a reciever"))
-                                }
-                            })
-                        .collect::<syn::Result<Vec<_>>>()?;
-
-                        input.parse::<tok::Semi>()?;
-                        signals.push(Signal {
-                            name:    signal_name,
-                            public:  is_public.is_some(),
-                            attribs: item_attribs,
-                            args:    signal_args
-                        });
-                    },
-
-                    "hk" => {
-                        if let Some(public) = is_public {
-                            return Err(syn::Error::new_spanned(public, "Hooks cannot have visibility modifiers"));
-                        }
-                        if item_kind != FieldKind::Regular {
-                            return Err(syn::Error::new_spanned(token, "Hooks cannot have field attributes"));
-                        }
-                        let hook_name: syn::Ident = input.parse()?;
-
-                        // Parse the arguments.
-                        let content;
-                        parenthesized!(content in input);
-
-                        let mut reciever: Option<Receiver>  = None;
-                        let     args:     Vec<syn::PatType> = punc::Punctuated::<syn::FnArg, Token![,]>::parse_terminated(&content)?
-                            .into_iter()
-                            .filter_map(|arg: syn::FnArg| {
-                                match arg {
-                                    syn::FnArg::Receiver(rec)   => { reciever = Some(rec); None }, 
-                                    syn::FnArg::Typed(pat_type) => Some(pat_type)
-                                }
-                            })
-                        .collect::<Vec<_>>();
-
-                        // Parse the output (if there is one!).
-                        let out: Option<syn::Ident> = if input.peek(Token![->]) {
-                            input.parse::<Token![->]>()?;
-                            Some(input.parse()?)
-                        } else {
-                            None
-                        };
-
-                        let body: syn::Block = input.parse()?;
-                        hooks.push(Hook {
-                            name:    hook_name,
-                            attribs: item_attribs,
-                            sig:     reciever,
-                            args,
-                            out,
-                            body
-                        });
-                    },
-
-                    _ => return Err(syn::Error::new_spanned(token, format!("Unknown token defined: {}", token_name))) 
-                }
-            }
-
-            // Parse a let statement:
-            else if item_kind != FieldKind::Regular || input.peek(Token![let]) {
-                input.parse::<tok::Let>()?;
-
-                let  name:  syn::Ident = input.parse()?;
-                let _colon: tok::Colon = input.parse()?;
-                let  ty:    syn::Type  = input.parse()?;
-
-                // Check for a default value.
-                let default_value: Option<syn::Expr> = if input.peek(Token![=]) {
-                    input.parse::<tok::Eq>()?;
-                    Some(input.parse::<syn::Expr>()?)
-                } else {
-                    None
-                };
-
-                if let Some(ref default_value) = default_value {
-                    if item_kind == FieldKind::Default {
-                        return Err(syn::Error::new_spanned(default_value, "A field with the attribute `default` cannot have an initialized value"));
-                    }
-                }
-
-                input.parse::<tok::Semi>()?;
-
-                // Append it to the fields group.
-                fields.push(Field {
-                    name,
-                    attribs: item_attribs,
-                    kind:    item_kind,
-                    public:  is_public.is_some(),
-                    ty,
-                    init:    default_value
-                });
-            }
-
-            // Parse a constant:
-            else if input.peek(Token![const]) {
-                let declare: syn::ItemConst = input.parse()?; 
-                if item_kind != FieldKind::Regular {
-                    return Err(syn::Error::new_spanned(declare, "Fonstants cannot have field attributes"));
-                }
-
-                consts.push(Const {
-                    attribs: item_attribs,
-                    public:  is_public.is_some(),
-                    declare 
-                });
-            }
-
-            // Parse a function:
-            else if input.peek(Token![fn]) {
-                let declare: syn::ItemFn = input.parse()?;
-                if item_kind != FieldKind::Regular {
-                    return Err(syn::Error::new_spanned(declare, "Functions cannot have field attributes"));
-                }
-
-                funcs.push(Func {
-                    attribs: item_attribs,
-                    public:  is_public.is_some(),
-                    declare
-                });
-            }
-
-            // Otherwise panic
-            else {
-                panic!("Unknown token!");
-            }
-        }
-        
-        Ok(Class {
-            name:    class_name,
-            attribs: class_attribs,
-            public,
-            signals,
-            consts,
-            fields,
-            hooks,
-            funcs
-        })
-    }
-}
-
-
 /// An easy way to be able to define a Node.
 /// 
 /// # Example
@@ -753,11 +360,11 @@ impl Parse for Class {
 /// class! {
 ///     
 ///     /// Documentation and attributes are supported!
-///     pub dec NodeName;
+///     pub declare NodeName extends UniqueTraitGroup1, UniqueTraitGroup2; // Will need to write a separate `impl` for each trait listed here.
 ///     
 ///     /// A signal can be connected to node functions and emitted.
 ///     /// Safety is guaranteed via the scene tree.
-///     pub sig on_event(param_name: Type, ..);
+///     pub signal on_event(param_name: Type, ..);
 ///
 ///     /// Constants are supported.
 ///     const SOME_CONST: &str = "Hello";
@@ -801,6 +408,7 @@ pub fn class(input: TokenStream) -> TokenStream {
     // Parse the given macro as a class definition.
     let Class {
         name,
+        extends,
         attribs,
         public,
         signals,
@@ -809,7 +417,15 @@ pub fn class(input: TokenStream) -> TokenStream {
         hooks,
         funcs
     } = parse_macro_input!(input as Class);
+
+    // Generate the class attributes, such as visibility and inherited traits.
     let visibility: TokenStream2 = if public { quote! { pub } } else { TokenStream2::new() };
+    
+    let extends = extends.iter().map(|inh_trait| {
+        quote! {
+            node_tree::dynamics::castable_to!(#name => node_tree::traits::node::Node, #inh_trait);
+        }
+    });
     
     // Generate the constant fields.
     let const_fields = consts.iter().map(|Const { attribs, public, declare }| {
@@ -1008,6 +624,8 @@ pub fn class(input: TokenStream) -> TokenStream {
         impl node_tree::prelude::Node for #name {
             #(#hook_impls)*
         }
+
+        #(#extends)*
     };
     TokenStream::from(expanded)
 }
@@ -1018,40 +636,6 @@ pub fn class(input: TokenStream) -> TokenStream {
  *      Macro
  */
 
-
-struct Connection {
-    signal_name:  syn::Ident,
-    one_shot:     bool,
-    tree_pointer: syn::Ident,
-    callback:     syn::Ident
-}
-
-impl Parse for Connection {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let     signal_name: syn::Ident = input.parse()?;
-        let mut one_shot:    bool       = false;
-
-        if input.peek(Token![~]) {
-            input.parse::<Token![~]>()?;
-            input.parse::<Token![>]>()?;
-            
-            one_shot = true;
-        } else {
-            input.parse::<Token![->]>()?;
-        }
-
-        let  tree_pointer: syn::Ident = input.parse()?;
-        let _punct:        tok::Dot   = input.parse()?;
-        let  callback:     syn::Ident = input.parse()?;
-
-        Ok(Connection {
-            signal_name,
-            one_shot,
-            tree_pointer,
-            callback
-        })
-    }
-}
 
 /// Allows for a safe abstraction for connecting listener functions in other nodes via `Tp<T>` to a
 /// signal.

@@ -106,4 +106,11 @@ pub mod prelude {
     pub use crate::{ nodepath, debug, info, warn, error };
 }
 
-pub use ctor;
+pub mod startup {
+    pub use ctor::ctor;
+}
+
+pub mod dynamics {
+    pub use intertrait::castable_to;
+}
+//pub use linkme;

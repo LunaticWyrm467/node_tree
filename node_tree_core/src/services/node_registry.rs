@@ -59,8 +59,7 @@ use crate::traits::exportable::Exportable;
 ///     let field_c: Vec<f32>;
 /// }
 ///
-/// // This function was generated for `NodeName` via the `Register` derive macro, which is
-/// implemented via `class!`:
+/// // This function was generated for `NodeName` via the `Register` derive macro, which is implemented via `class!`:
 /// fn deserialize(owned_state: SFieldMap) -> Result<Box<dyn Node>, String> {
 ///     let node: NodeName = NodeName::load_from_owned(
 ///         String::from_value(*owned_state.remove("field_a").ok_or("corrupt save data; `field_a` missing".to_string())?).ok_or("corrupt save data; `field_a` invalid type".to_string())?,
@@ -89,6 +88,7 @@ struct Registry {
 unsafe impl Send for Registry {}
 unsafe impl Sync for Registry {}
 
+
 /// Registers a deserializing function under a node's name.
 ///
 /// # Safety
@@ -96,10 +96,12 @@ unsafe impl Sync for Registry {}
 /// function is invoked via `ctor`.
 pub unsafe fn register_deserializer(name: Box<str>, deserializer: impl Fn(SFieldMap) -> Result<Box<dyn Node>, String> + 'static) {
     #![allow(static_mut_refs)] // SAFETY: Only modified during initialization before main.
-    if NODE_REGISTRY.is_none() {
-        NODE_REGISTRY = Some(Arc::new(Registry { registry: DashMap::new() }));
+    unsafe {
+        if NODE_REGISTRY.is_none() {
+            NODE_REGISTRY = Some(Arc::new(Registry { registry: DashMap::new() }));
+        }
+        NODE_REGISTRY.as_mut().unwrap().registry.insert(name, Box::new(deserializer));
     }
-    NODE_REGISTRY.as_mut().unwrap().registry.insert(name, Box::new(deserializer));
 }
 
 /// Takes a `SFieldMap` and deserializes it into a `Node` with a bare `NodeBase`.
@@ -107,8 +109,8 @@ pub fn deserialize(name: &str, owned_state: SFieldMap) -> Result<Box<dyn Node>, 
     #![allow(static_mut_refs)] // SAFETY: Only modified during initialization before main.
     
     // Safety:
-    // This does not mutate state and `register_deserializer`, which does mutate state, is marked
-    // unsafe and is expected to run before the main function is invoked.
+    // This does not mutate state and `register_deserializer`, which does mutate state, is marked unsafe and is expected to run before
+    // the main function is invoked.
     unsafe {
         (NODE_REGISTRY.as_ref()
          .ok_or("attempting to deserialize from an unregistered node".to_string())?

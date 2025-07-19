@@ -5,8 +5,7 @@ use crate::structs::node_field::{ Field, ExportableField, UniqueField, DefaultFi
 
 
 
-/// Used for function arguments that should be flexible and take in types in both their raw form
-/// and their `NodeField` forms.
+/// Used for function arguments that should be flexible and take in types in both their raw form and their `NodeField` forms.
 pub trait Element<T> {
     
     /// Converts the element into its inferred type.

@@ -110,8 +110,8 @@ impl <T> Deref for Field<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         match self {
-            Self::Valid(ref valid) => valid,
-            Self::Void             => panic!("Attempted to utilize a voided node field")
+            Self::Valid(valid) => valid,
+            Self::Void         => panic!("Attempted to utilize a voided node field")
         }
     }
 }
@@ -119,8 +119,8 @@ impl <T> Deref for Field<T> {
 impl <T> DerefMut for Field<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
-            Self::Valid(ref mut valid) => valid,
-            Self::Void                 => panic!("Attempted to utilize a voided node field")
+            Self::Valid(valid) => valid,
+            Self::Void         => panic!("Attempted to utilize a voided node field")
         }
     }
 }
@@ -513,8 +513,8 @@ impl <T> Deref for UniqueField<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         match self {
-            Self::Valid(ref valid) => valid,
-            Self::Void             => panic!("Attempted to utilize a voided node field")
+            Self::Valid(valid) => valid,
+            Self::Void         => panic!("Attempted to utilize a voided node field")
         }
     }
 }
@@ -522,8 +522,8 @@ impl <T> Deref for UniqueField<T> {
 impl <T> DerefMut for UniqueField<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
-            Self::Valid(ref mut valid) => valid,
-            Self::Void                 => panic!("Attempted to utilize a voided node field")
+            Self::Valid(valid) => valid,
+            Self::Void         => panic!("Attempted to utilize a voided node field")
         }
     }
 }

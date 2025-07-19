@@ -5,11 +5,11 @@ use node_tree::trees::TreeSimple;
 
 
 class! {
-    dec Unit;
+    declare Unit;
 }
 
 class! {
-    dec Crawler;
+    declare Crawler;
 
     hk process(&mut self, _delta: f32) {
         let paths_and_targets: HashMap<NodePath, &str> = vec![

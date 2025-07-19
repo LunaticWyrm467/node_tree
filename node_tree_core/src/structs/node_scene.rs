@@ -61,11 +61,13 @@ pub struct NodeScene {
 impl NodeScene {
     
     /// Creates a new `NodeScene` with a root node.
+    #[inline]
     pub fn new<N: Node>(root: N) -> Self {
         Self::new_dyn(root.to_dyn_box())
     }
 
     /// Creates a new `NodeScene` from a dynamic node.
+    #[inline]
     pub fn new_dyn(root: Box<dyn Node>) -> Self {
         NodeScene {
             this:      Box::into_raw(root),
@@ -252,14 +254,13 @@ impl NodeScene {
     }
 
     /// Recursively builds a hash that represents the scene layout.
-    /// This will NOT check node fields, but will only compare the shape, ownership, and types
-    /// present throughout a scene tree.
+    /// This will NOT check node fields, but will only compare the shape, ownership, and types present throughout a scene tree.
     ///
     /// This can be useful to test for scene changes across loading and saving.
     /// 
     /// # Note
-    /// This uses the default hasher. The `Hash` trait is also implemented to support hashing with
-    /// other hash functions.
+    /// This uses the default hasher. The `Hash` trait is also implemented to support hashing with other hash functions.
+    #[inline]
     pub fn structural_hash(&self) -> u64 {
         let mut hasher: hash::DefaultHasher = hash::DefaultHasher::new();
         self.internal_structural_hash(&mut hasher);
@@ -281,13 +282,14 @@ impl NodeScene {
     }
 
     /// Appends a `NodeScene` as a child.
+    #[inline]
     pub fn append(&mut self, mut child: NodeScene) {
         child.is_owner = false; // Have this only be applied for single nodes, not whole node scenes!
         self.children.push(child);
     }
 
-    /// Appends an owning `NodeScene` as a child, ensuring that the root node of the added
-    /// `NodeScene` is always an owner.
+    /// Appends an owning `NodeScene` as a child, ensuring that the root node of the added `NodeScene` is always an owner.
+    #[inline]
     pub fn append_as_owner(&mut self, mut child: NodeScene) {
         child.is_owner = true;
         self.children.push(child);
@@ -296,10 +298,12 @@ impl NodeScene {
     /// Returns this `NodeScene` instance's associated node.
     /// 
     /// # Safety
-    /// This is marked unsafe as if the resulting `Box<T>` is dropped, the internal pointer could
-    /// be invalidated.
+    /// This is marked unsafe as if the resulting `Box<T>` is dropped, the internal pointer could be invalidated.
+    #[inline]
     pub unsafe fn get_node(&self) -> Box<dyn Node> {
-        Box::from_raw(self.this)
+        unsafe  {
+            Box::from_raw(self.this)
+        }
     }
 
     /// Gets the children.
@@ -308,6 +312,7 @@ impl NodeScene {
     }
 
     /// Updates the internal RIDs.
+    #[inline]
     pub fn update_internal(&self, mut counter: u64) {
         for child in &self.children {
 
@@ -346,6 +351,7 @@ impl Clone for NodeScene {
 }
 
 impl hash::Hash for NodeScene {
+    #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.internal_structural_hash(state)
     }

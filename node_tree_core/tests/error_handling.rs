@@ -3,7 +3,7 @@ use node_tree::trees::tree_simple::TreeSimple;
 
 
 class! {
-    dec NodeA;
+    declare NodeA;
 
     hk ready(&mut self) {
         if self.depth() == 2 && self.name() == "NodeA1" {

@@ -3,9 +3,9 @@ use node_tree::trees::TreeSimple;
 
 
 class! {
-    dec NodeA;
+    declare NodeA;
     
-    sig on_event(count: u8);
+    signal on_event(count: u8);
     
     default let count: u8;
     
@@ -29,7 +29,7 @@ class! {
 
 
 class! {
-    dec NodeB;
+    declare NodeB;
 
     fn listener(&self, count: &u8) {
         if *count == 3 {

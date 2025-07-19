@@ -9,7 +9,7 @@ use node_tree::trees::TreeSimple;
 
 
 class! {
-    dec NodeA;
+    declare NodeA;
 
     export let field_1: u64    = 0;
     export let field_2: String = "Hello World!".to_string();
@@ -17,14 +17,14 @@ class! {
 }
 
 class! {
-    dec NodeB;
+    declare NodeB;
 
     export let field_a: u8   = 255;
     export let field_b: char = 'x';
 }
 
 class! {
-    dec NodeC;
+    declare NodeC;
 
     export let field_0: Vec<u8>           = vec![0, 1];
     export let field_1: HashMap<char, u8> = vec![('a', 0), ('b', 1), ('c', 2)].into_iter().collect();
@@ -44,7 +44,9 @@ class! {
 fn test_writing_to_disk() {
 
     // Set this for debugging.
-    env::set_var("RUST_BACKTRACE", "1");
+    unsafe {
+        env::set_var("RUST_BACKTRACE", "1");
+    }
     
     // Create a scene and save it.
     let scene: NodeScene = scene! {
@@ -69,7 +71,7 @@ fn test_writing_to_disk() {
 
 
 class! {
-    dec Root;
+    declare Root;
 
     hk ready(&mut self) {
         

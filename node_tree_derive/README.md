@@ -4,7 +4,7 @@
 [![Static Badge](https://img.shields.io/badge/DOCS.RS-node_tree-66c2a5?style=for-the-badge&logo=docs.rs)](https://docs.rs/node_tree)
 ![Crates.io License](https://img.shields.io/crates/l/node_tree?color=green&style=for-the-badge)
 
-**NodeTree** is a framework to create large scalable programs and games through a tree of processes. Each process is fully autonomous and is capable of storing its own state or data, and communicating with other processes. These processes are known as Nodes.
+**NodeTree** is a scene graph framework to create large scalable programs and games through a tree of processes. Each process is fully autonomous and is capable of storing its own state or data, and communicating with other processes. These processes are known as Nodes.
 
 **⚠️WARNING⚠️**<br>
 This crate is in early development. Beware of possible bugs or safety violations.<br>
@@ -18,7 +18,9 @@ use node_tree::prelude::*;
 
 
 class! {
-    dec NodeA;
+
+    // Standard procedure for declaring a class. This supports doc comments.
+    declare NodeA;
 
     // Fields are declared as such:
     let given_name: String;
@@ -250,6 +252,79 @@ fn main() {
 }
 ```
 
+## Proto-Inheritance with Traits
+Rust does not support inheritance in a typical sense, so this crate attempts to emulate core aspects of it that are important to scene graphs.
+```rust
+
+// We define a trait that has a specific behaviour for a group of node classes. This can be useful for UI nodes, physics nodes, or nodes
+// that we would wish to iterate in a generic setting and otherwise access some sort of generalised behaviour.
+trait Attribute {
+    fn say_something(&self) -> &'static str;
+}
+
+// We then declare the nodes that will extend from this trait and implement the trait for all of them outside of the class macro.
+class! {
+    declare AttributeNode1 extends Attribute;
+}
+
+class! {
+    declare AttributeNode2 extends Attribute;
+}
+
+class! {
+    declare AttributeNode3 extends Attribute;
+}
+
+impl Attribute for AttributeNode1 {
+    fn say_something(&self) -> &'static str {
+        "Foo!"
+    }
+}
+
+impl Attribute for AttributeNode2 {
+    fn say_something(&self) -> &'static str {
+        "Bar!"
+    }
+}
+
+impl Attribute for AttributeNode3 {
+    fn say_something(&self) -> &'static str {
+        "Baz!"
+    }
+}
+
+// We then define a controller node that will iterate through its children and run the generalised behaviour without knowing the concrete node
+// type.
+class! {
+    declare ControlNode;
+
+    hk process(&mut self, _: f32) {
+        let mut log: Vec<&'static str> = Vec::with_capacity(3);
+
+        for i in 0..self.num_children() {
+            let child:  TpDyn          = self.get_child_dyn(i).unwrap(); // Only generic Tree Pointers support trait casting.
+            let casted: &dyn Attribute = child.cast().unwrap();
+
+            log.push(casted.say_something());
+        }
+
+        assert_eq!(log, vec!["Foo!", "Bar!", "Baz!"]);
+
+        // ...
+    }
+}
+```
+In order for this specific example to work, the scene is assumed to be in this layout:
+```rust
+let scene: NodeScene = scene! {
+    ControlNode {
+        AttributeNode1,
+        AttributeNode2,
+        AttributeNode3
+    }
+};
+```
+
 ## Supported Features
 - `glam` - Enables support with glam's (v0.29.*) types when it comes with saving and loading.
 
@@ -258,6 +333,7 @@ fn main() {
 - ⏯️ The ability to `pause()` and `unpause()` the `NodeTree`, and fine tune individual `Node` behaviours for when a tree is paused/unpaused.
 - 📡 Various methods to communicate with other nodes, such as `owner()`, `parent()`, `get_child()`, `children()`, and `get_node()`, as well as methods to automate the process such as signals.
 - 🔗 An abstracted smart pointer known as `Tp<T>` and `TpDyn` which clones implicitly to reduce syntax noise and allows for low boilerplate.
+- 🗃️ A way to cast `TpDyn` into dynamic trait objects of traits the tree pointer's node extends from.
 - 📚 A caching system hosted on the `NodeTree` to act as a safe interface to ensure `Tp<T>`/`TpDyn` soundness, and increase performance!
 - 👪 The ability to manage nodes with `add_child()` and `remove_child()`.
 - 📝 Includes a dynamic logging and error handling system that is deeply integrated with the node framework.

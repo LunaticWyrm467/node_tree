@@ -5,7 +5,9 @@ use node_tree::prelude::*;
 fn test_node_integration() {
     
     // Enable backtrace.
-    std::env::set_var("RUST_BACKTRACE", "1");
+    unsafe {
+        std::env::set_var("RUST_BACKTRACE", "1");
+    }
 
     // Initialize the NodeScene.
     let child_scene: NodeScene = scene! {
@@ -37,7 +39,7 @@ fn test_node_integration() {
 
 
 class! {
-    dec NodeA;
+    declare NodeA;
 
     let _example_arg: u8;
 

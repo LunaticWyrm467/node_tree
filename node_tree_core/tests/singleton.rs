@@ -3,7 +3,7 @@ use node_tree::trees::tree_simple::TreeSimple;
 
 
 class! {
-    dec Singleton;
+    declare Singleton;
 
     hk ready(&mut self) {
         let status: bool = self.register_as_singleton("TheOneAndOnly".to_string());

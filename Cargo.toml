@@ -2,5 +2,11 @@
 resolver = "2"
 members  = [
     "node_tree_core",
-    "node_tree_derive",
+    "node_tree_derive"
+]
+
+exclude = [
+    ".github/*",
+    ".vscode/*",
+    "tests/*",
 ]

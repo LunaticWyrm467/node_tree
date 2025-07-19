@@ -3,19 +3,19 @@ use node_tree::trees::TreeSimple;
 
 
 class! {
-    dec NodeA;
+    declare NodeA;
 }
 
 class! {
-    dec NodeB;
+    declare NodeB;
 }
 
 class! {
-    dec NodeC;
+    declare NodeC;
 }
 
 class! {
-    dec NodeD;
+    declare NodeD;
 
     hk ready(&mut self) {
         panic!("Failed successfully!")

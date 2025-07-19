@@ -198,7 +198,7 @@ impl Logger {
             LoggerVerbosity::OnlyPanics => if !log.is_panic()       { return false; }
         }
         
-        let node_tree: &NodeTreeBase = &*node_tree;
+        let node_tree: &NodeTreeBase = unsafe { &*node_tree };
         let system:    SystemCall    = {
             match node_tree.get_node_identity(calling) {
                 Some(NodeIdentity::NodePath)         => SystemCall::NodePath(unsafe { node_tree.get_node(calling).unwrap_unchecked() }.get_absolute_path().to_string()),

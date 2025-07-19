@@ -204,7 +204,7 @@ impl NodeTreeBase {
         scene.iterate(|parent, node, is_owner| {
             if let Some(parent) = parent {
                 let parent: &mut dyn Node = unsafe { &mut *parent };
-                let rid:    RID           = parent.add_child_from_ptr(node, is_owner, true);
+                let rid:    RID           = unsafe { parent.add_child_from_ptr(node, is_owner, true) };
 
                 initialization_history.push(rid);
             } else {
@@ -235,7 +235,9 @@ impl NodeTreeBase {
             let node: &mut dyn Node = unsafe { self.get_node_mut(rid).unwrap_unchecked() };
             if node.has_just_loaded() {
                 node.loaded();
-                node.mark_as_final();
+                unsafe {
+                    node.mark_as_final();
+                }
             }
             node.ready();
         }
@@ -456,8 +458,11 @@ impl NodeTreeBase {
 
         // Unregister this node from the tree.
         let node: Option<*mut dyn Node> = self.nodes.take(rid);
+        
         self.identity.remove(&rid);
-        node.map(|ptr| Box::from_raw(ptr))
+        node.map(|ptr| unsafe {
+            Box::from_raw(ptr)
+        })
     }
     
     /// Converts a Node into a singleton which means that a node is allowed access by name.

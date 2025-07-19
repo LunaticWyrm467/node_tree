@@ -31,6 +31,7 @@ use std::any::Any;
 use std::marker::PhantomData;
 
 use thiserror::Error;
+use intertrait::cast::*;
 
 use crate::traits::{ node::Node, node_tree::NodeTree };
 use super::rid::RID;
@@ -55,7 +56,13 @@ pub enum TPError {
     IsNull,
 
     #[error("Cannot cast a null Tp<T> to a dynamic TpDyn")]
-    AttemptedCastToDynOnNull
+    AttemptedCastToDynOnNull,
+
+    #[error("Cannot coerce a null TpDyn to a dynamic trait object")]
+    AttemptedDynCastOnNull,
+
+    #[error("The held node by this TpDyn does not extend the specified trait")]
+    DynCastFailed,
 }
 
 
@@ -101,30 +108,33 @@ impl <'a, T: Node> Tp<'a, T> {
     pub unsafe fn new(tree: *mut dyn NodeTree, owner: RID, node: RID) -> TreeResult<'a, Self, TPError> {
         
         // First check if the types match using dynamic dispatch!
-        match (*tree).get_node(node) {
+        match unsafe { &*tree }.get_node(node) {
             Some(node) => {
-                let any: &dyn Any = node.as_any();
+                let any: &dyn Any = node.as_any_ref();
                 match any.downcast_ref::<T>() {
                     Some(_) => (),
-                    None    => return TreeResult::new(tree, owner, Err(TPError::WrongType))
+                    None    => return unsafe { TreeResult::new(tree, owner, Err(TPError::WrongType)) }
                 }
             },
-            None => return TreeResult::new(tree, owner, Err(TPError::IsNull))
+            None => return unsafe { TreeResult::new(tree, owner, Err(TPError::IsNull)) }
         }
 
-        TreeResult::new(tree, owner, Ok(Tp {
-            tree,
-            owner,
-            node,
-            p_life: PhantomData,
-            p_type: PhantomData
-        }))
+        unsafe {
+            TreeResult::new(tree, owner, Ok(Tp {
+                tree,
+                owner,
+                node,
+                p_life: PhantomData,
+                p_type: PhantomData
+            }))
+        }
     }
     
     /// Converts this to a generic `TpDyn`.
     ///
     /// # Panics
     /// Panics if the node is invalid!
+    #[inline]
     pub fn to_dyn(self) -> TpDyn<'a> {
         unsafe {
             match TpDyn::new(self.tree, self.owner, self.node).ok().to_option() {
@@ -138,6 +148,7 @@ impl <'a, T: Node> Tp<'a, T> {
     ///
     /// # Failure
     /// Will not return a valid `TpDyn` pointer if the internally referenced `Node` has been invalidated!
+    #[inline]
     pub fn try_to_dyn(self) -> TreeResult<'a, TpDyn<'a>, TPError> {
         unsafe {
             TpDyn::new(self.tree, self.owner, self.node)
@@ -145,10 +156,11 @@ impl <'a, T: Node> Tp<'a, T> {
     }
 
     /// Determines if the `Node` this pointer is pointing to is valid.
+    #[inline]
     pub fn is_valid(&self) -> bool {
         match unsafe { &*self.tree }.get_node(self.node) {
             Some(node) => {
-                let any: &dyn Any = node.as_any();
+                let any: &dyn Any = node.as_any_ref();
                     any.downcast_ref::<T>().is_some()
             },
             None => false
@@ -156,10 +168,11 @@ impl <'a, T: Node> Tp<'a, T> {
     }
     
     /// Determines if the `Node` this pointer is pointing to is invalid.
+    #[inline]
     pub fn is_null(&self) -> bool {
         match unsafe { &*self.tree }.get_node(self.node) {
             Some(node) => {
-                let any: &dyn Any = node.as_any();
+                let any: &dyn Any = node.as_any_ref();
                     any.downcast_ref::<T>().is_none()
             },
             None => true
@@ -174,7 +187,7 @@ impl <'a, T: Node> Tp<'a, T> {
         let node: Option<&dyn Node> = unsafe { &*self.tree }.get_node_raw(self.node).map(|n| unsafe { &*n });
         match node {
             Some(node) => {
-                let any: &dyn Any = node.as_any();
+                let any: &dyn Any = node.as_any_ref();
                 match any.downcast_ref::<T>() {
                     Some(node) => node,
                     None       => self.fail(TPError::WrongType)
@@ -189,7 +202,7 @@ impl <'a, T: Node> Tp<'a, T> {
         let node: Option<&dyn Node> = unsafe { &*self.tree }.get_node_raw(self.node).map(|n| unsafe { &*n });
         match node {
             Some(node) => {
-                let any: &dyn Any = node.as_any();
+                let any: &dyn Any = node.as_any_ref();
                 match any.downcast_ref::<T>() {
                     Some(node) => unsafe { TreeResult::new(self.tree, self.owner, Ok(node)) },
                     None       => unsafe { TreeResult::new(self.tree, self.owner, Err(TPError::WrongType)) }
@@ -233,6 +246,7 @@ impl <'a, T: Node> Tp<'a, T> {
     }
 
     /// Marks a failed operation with a panic on the log, and panics the main thread.
+    #[inline]
     fn fail(&self, err: TPError) -> ! {
         unsafe { (*self.tree).get_node(self.owner).unwrap_unchecked() }.post(Log::Panic(&format!("{err:?}")));
         println!("\n[RUST TRACE]");
@@ -242,12 +256,15 @@ impl <'a, T: Node> Tp<'a, T> {
 
 impl <'a, T: Node> Deref for Tp<'a, T> {
     type Target = T;
+
+    #[inline]
     fn deref(&self) -> &Self::Target {
         self.get()
     }
 }
 
 impl <'a, T: Node> DerefMut for Tp<'a, T> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.get_mut()
     }
@@ -260,20 +277,22 @@ impl <'a, T: Node> DerefMut for Tp<'a, T> {
  */
 
 
-/// A Dynamic Tree Pointer (`TpDyn`) is a reference to a specific RID and a pointer to the `NodeTree`,
-/// meaning that it has access to grab a reference or mutable reference to a Node at will.
-/// The difference between this and the standard `Tp<T>` is that it will allow generic access to a
-/// dynamic Node object without forced coercion to a specific known node type. However, if a type
-/// is later determined, it can easily be converted to a `Tp<T>` (`to<T>()`). In fact, this has a built in
-/// method (`is<T>()`) to determine if this is of a specified type.
+/// A Dynamic Tree Pointer (`TpDyn`) is a reference to a specific RID and a pointer to the `NodeTree`, meaning that it has access to grab
+/// a reference or mutable reference to a Node at will. The difference between this and the standard `Tp<T>` is that it will allow
+/// generic access to a dynamic Node object without forced coercion to a specific known node type. However, if a type is later determined,
+/// it can easily be converted to a `Tp<T>` (`to<T>()`). In fact, this has a built in  method (`is<T>()`) to determine if this is of a
+/// specified type.
 ///
 /// # Lifetimes
-/// This shares a LifeTime with its owning Node, as its owning Node is what manages its internal
-/// pointer to the `NodeTree`.
+/// This shares a LifeTime with its owning Node, as its owning Node is what manages its internal pointer to the `NodeTree`.
 ///
 /// # `Deref` and `DerefMut`
-/// The Tree Pointer implements `Deref` and `DerefMut`, which automatically call the panicking
-/// versions of `get()` and `get_mut()`.
+/// The Tree Pointer implements `Deref` and `DerefMut`, which automatically call the panicking versions of `get()` and `get_mut()`.
+/// 
+/// # Casting
+/// This allows casting to specific trait objects via the `cast()` and `cast_mut()` methods that the node this `TpDyn` is pointing to
+/// extends from.
+/// This is useful when you wish to coerce a node into a defined group of behaviours in a generic setting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TpDyn<'a> {
     owner:  RID,
@@ -297,24 +316,79 @@ impl <'a> TpDyn<'a> {
     pub unsafe fn new(tree: *mut dyn NodeTree, owner: RID, node: RID) -> TreeResult<'a, Self, TPError> {
         
         // First check if the node exists!
-        match (*tree).get_node(node) {
+        match unsafe { &*tree }.get_node(node) {
             Some(_) => (),
-            None    => return TreeResult::new(tree, owner, Err(TPError::IsNull))
+            None    => return unsafe { TreeResult::new(tree, owner, Err(TPError::IsNull)) }
         }
 
-        TreeResult::new(tree, owner, Ok(TpDyn {
-            owner,
-            node,
-            tree,
-            p_life: PhantomData
-        }))
+        unsafe {
+            TreeResult::new(tree, owner, Ok(TpDyn {
+                owner,
+                node,
+                tree,
+                p_life: PhantomData
+            }))
+        }
+    }
+
+    /// This attempts to cast to a specific trait object.
+    /// Useful when you wish to coerce a node into a defined group of behaviours, but do not know the type of the node.
+    /// 
+    /// # Failure
+    /// This will fail if the node within is null, or if the node does not extend the specified trait.
+    pub fn cast<T: ?Sized + 'static>(&self) -> TreeResult<&'a T, TPError> {
+        use std::mem;
+
+        match self.try_get().to_option() {
+            Some(inner) => {
+                match <dyn Node as CastRef>::cast::<T>(inner) {
+                    Some(casted) => unsafe { TreeResult::new(self.tree, self.owner, Ok(mem::transmute(casted))) }, // Expand lifetime artificially
+                    None         => unsafe { TreeResult::new(self.tree, self.owner, Err(TPError::DynCastFailed)) }
+                }
+            },
+            None => unsafe { TreeResult::new(self.tree, self.owner, Err(TPError::AttemptedDynCastOnNull)) }
+        }
+    }
+
+    /// This attempts to cast to a specific trait object.
+    /// Useful when you wish to coerce a node into a defined group of behaviours, but do not know the type of the node.
+    /// 
+    /// # Failure
+    /// This will fail if the node within is null, or if the node does not extend the specified trait.
+    #[inline]
+    pub fn cast_mut<T: ?Sized + 'static>(&mut self) -> TreeResult<&'a mut T, TPError> {
+        use std::mem;
+
+        // Grab these here so that we can avoid needed references during a mutable borrow.
+        let tree: *mut dyn NodeTree = self.tree;
+        let owner: RID              = self.owner;
+
+        match self.try_get_mut().to_option() {
+            Some(inner) => {
+                match <dyn Node as CastMut>::cast::<T>(inner) {
+                    Some(casted) => unsafe { TreeResult::new(tree, owner, Ok(mem::transmute(casted))) }, // Expand lifetime artificially
+                    None         => unsafe { TreeResult::new(tree, owner, Err(TPError::DynCastFailed)) }
+                }
+            },
+            None => unsafe { TreeResult::new(tree, owner, Err(TPError::AttemptedDynCastOnNull)) }
+        }
     }
 
     /// Converts this to a type-coerced pointer.
+    #[inline]
     pub fn to<T: Node>(self) -> TreeResult<'a, Tp<'a, T>, TPError> {
         unsafe {
             Tp::new(self.tree, self.owner, self.node)
         }
+    }
+
+    /// Checks if the node this points to can be cast to a specific trait.
+    #[inline]
+    pub fn is_of<T: ?Sized + 'static>(&self) -> bool {
+        use std::mem;
+
+        let node: TpDyn = unsafe { mem::transmute(*self) };
+        <TpDyn as CastRef>::impls::<T>(&node)
     }
 
     /// Determines if this pointer references a specific type.
@@ -322,7 +396,7 @@ impl <'a> TpDyn<'a> {
         let node: Option<&dyn Node> = unsafe { &*self.tree }.get_node_raw(self.node).map(|n| unsafe { &*n });
         match node {
             Some(node) => {
-                let any: &dyn Any = node.as_any();
+                let any: &dyn Any = node.as_any_ref();
                     any.downcast_ref::<T>().is_some()
             },
             None => false
@@ -330,11 +404,13 @@ impl <'a> TpDyn<'a> {
     }
 
     /// Determines if the `Node` this pointer is pointing to is valid.
+    #[inline]
     pub fn is_valid(&self) -> bool {
         unsafe { &*self.tree }.get_node(self.node).is_some()
     }
     
     /// Determines if the `Node` this pointer is pointing to is invalid.
+    #[inline]
     pub fn is_null(&self) -> bool {
         unsafe { &*self.tree }.get_node(self.node).is_none()
     }
@@ -343,6 +419,7 @@ impl <'a> TpDyn<'a> {
     ///
     /// # Panics
     /// Panics if the node is invalid!
+    #[inline]
     pub fn get(&self) -> &dyn Node {
         let node: Option<&dyn Node> = unsafe { &*self.tree }.get_node_raw(self.node).map(|n| unsafe { &*n });
         match node {
@@ -352,6 +429,7 @@ impl <'a> TpDyn<'a> {
     }
     
     /// Attempts to get a reference to the underlying `Node`. Returns `Err` if the `Node` is invalid.
+    #[inline]
     pub fn try_get(&self) -> TreeResult<'a, &dyn Node, TPError> {
         match unsafe { &*self.tree }.get_node_raw(self.node).map(|n| unsafe { &*n }) {
             Some(node) => unsafe { TreeResult::new(self.tree, self.owner, Ok(node)) },
@@ -363,6 +441,7 @@ impl <'a> TpDyn<'a> {
     ///
     /// # Panics
     /// Panics if the node is invalid!
+    #[inline]
     pub fn get_mut(&mut self) -> &mut dyn Node {
         let node: Option<&mut dyn Node> = unsafe { &mut *self.tree }.get_node_mut_raw(self.node).map(|n| unsafe { &mut *n });
         match node {
@@ -372,6 +451,7 @@ impl <'a> TpDyn<'a> {
     }
     
     /// Attempts to get a mutable reference to the underlying `Node`. Returns `Err` if the `Node` is invalid.
+    #[inline]
     pub fn try_get_mut(&mut self) -> TreeResult<'a, &mut dyn Node, TPError> {
         match unsafe { &mut *self.tree }.get_node_mut_raw(self.node).map(|n| unsafe { &mut *n }) {
             Some(node) => unsafe { TreeResult::new(self.tree, self.owner, Ok(node)) },
@@ -380,6 +460,7 @@ impl <'a> TpDyn<'a> {
     }
 
     /// Marks a failed operation with a panic on the log, and panics the main thread.
+    #[inline]
     fn fail(&self, err: TPError) -> ! {
         unsafe { (*self.tree).get_node(self.owner).unwrap_unchecked() }.post(Log::Panic(&format!("{err}")));
         println!("\n[RUST TRACE]");

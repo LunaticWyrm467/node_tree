@@ -30,6 +30,8 @@ use std::fmt;
 use std::any::Any;
 use std::ops::{ Deref, DerefMut };
 
+use intertrait::CastFrom;
+
 use crate::structs::{ node_base::NodeBase, node_tree_base::{ ProcessMode, TerminationReason } };
 use super::registered::Registered;
 use super::instanceable::Instanceable;
@@ -60,10 +62,10 @@ pub trait NodeAbstract: Deref<Target = NodeBase> + DerefMut + Any + fmt::Debug {
     /// Converts this into a Boxed type.
     fn to_dyn_box(self) -> Box<dyn Node>;
 
-    /// Converts this into an Any type.
-    fn as_any(&self) -> &dyn Any;
+    /// Converts this into a reference to an `Any` dynamic object.
+    fn as_any_ref(&self) -> &dyn Any;
 
-    /// Converts this into a mutable Any type.
+    /// Converts this into a mutable reference to an `Any` dynamic object.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
     /// Clones this, returning a boxed clone value.
@@ -76,7 +78,7 @@ pub trait NodeAbstract: Deref<Target = NodeBase> + DerefMut + Any + fmt::Debug {
 
 /// This only holds the node's 'programmable' behaviours.
 /// This must be implemented along with `NodeAbstract` to create a new node.
-pub trait Node: NodeAbstract + Registered {
+pub trait Node: NodeAbstract + Registered + CastFrom {
 
     /// Runs right before the `ready()` function for a `Node` that was loaded in, when said node is
     /// added to the scene tree.

@@ -17,7 +17,9 @@ pub fn test_logger_bare() -> () {
 pub fn test_logger_tree() -> () {
     
     // Enable backtrace.
-    std::env::set_var("RUST_BACKTRACE", "1");
+    unsafe {
+        std::env::set_var("RUST_BACKTRACE", "1");
+    }
     
     // Create the tree.
     let     root: LoggerNode      = LoggerNode::new("Root".to_string());
@@ -28,7 +30,7 @@ pub fn test_logger_tree() -> () {
 
 
 class! {
-    dec LoggerNode;
+    declare LoggerNode;
 
     let given_name: String;
 

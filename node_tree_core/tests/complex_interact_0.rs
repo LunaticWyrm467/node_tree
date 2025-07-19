@@ -3,7 +3,7 @@ use node_tree::trees::TreeSimple;
 
 
 class! {
-    dec NodeA;
+    declare NodeA;
 
     export default let path_to_target: NodePath;
 
@@ -15,11 +15,11 @@ class! {
 
 
 class! {
-    dec NodeB;
+    declare NodeB;
 }
 
 class! {
-    dec NodeC;
+    declare NodeC;
 
     fn call_this(&self) {
         info!(self, "Finished Successfully!");
