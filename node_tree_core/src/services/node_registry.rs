@@ -52,7 +52,7 @@ use crate::traits::exportable::Exportable;
 /// function is shown below:
 /// ```rust, ignore
 /// class! {
-///     dec NodeName;
+///     declare NodeName;
 ///
 ///     let field_a: String;
 ///     let field_b: u32;

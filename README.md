@@ -169,7 +169,7 @@ use node_tree::trees::TreeSimple;
 
 
 class! {
-    dec NodeA;
+    declare NodeA;
 
     hk ready(&mut self) {
         if self.depth() == 2 && self.name() == "NodeA1" {
@@ -211,9 +211,9 @@ use node_tree::trees::TreeSimple;
 
 
 class! {
-    dec NodeA;
+    declare NodeA;
     
-    sig on_event(count: u8);
+    signal on_event(count: u8);
     
     let count: u8 = 0;
     
@@ -230,7 +230,7 @@ class! {
 
 
 class! {
-    dec NodeB;
+    declare NodeB;
 
     fn listener(&self, count: &u8) {
         if *count == 3 {

@@ -28,11 +28,11 @@
 //! class! {
 //!     
 //!     /// Documentation and attributes are supported!
-//!     pub dec NodeName;
+//!     pub declare NodeName extends UniqueTraitGroup1, UniqueTraitGroup2; // Will need to write a separate `impl` for each trait listed here.
 //!     
 //!     /// A signal can be connected to node functions and emitted.
 //!     /// Safety is guaranteed via the scene tree.
-//!     pub sig on_event(param_name: Type, ..);
+//!     pub signal on_event(param_name: Type, ..);
 //!
 //!     /// Constants are supported.
 //!     const SOME_CONST: &str = "Hello";

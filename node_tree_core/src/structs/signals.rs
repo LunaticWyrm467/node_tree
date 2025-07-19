@@ -54,11 +54,11 @@ type EventHandler<T> = RIDHolder<(*mut dyn FnMut(&T), ConnectionType)>;
 /// # Example Declaration
 /// ```rust, ignore
 /// class! {
-///     dec YourNode;
+///     declare YourNode;
 ///
-///     pub sig on_refresh();
-///     pub sig on_click(at: Vec2); // Parameter names don't matter - only used for readability!
-///     pub sig on_element_hovered(element_id: u64, element_active: bool);
+///     pub signal on_refresh();
+///     pub signal on_click(at: Vec2); // Parameter names don't matter - only used for readability!
+///     pub signal on_element_hovered(element_id: u64, element_active: bool);
 /// }
 /// ```
 #[derive(Debug)]
