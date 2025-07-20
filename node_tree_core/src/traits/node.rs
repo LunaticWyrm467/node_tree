@@ -30,7 +30,7 @@ use std::fmt;
 use std::any::Any;
 use std::ops::{ Deref, DerefMut };
 
-use intertrait::CastFrom;
+use portable_intertrait::CastFrom;
 
 use crate::structs::{ node_base::NodeBase, node_tree_base::{ ProcessMode, TerminationReason } };
 use super::registered::Registered;

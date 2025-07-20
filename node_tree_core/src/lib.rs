@@ -111,6 +111,6 @@ pub mod startup {
 }
 
 pub mod dynamics {
-    pub use intertrait::castable_to;
+    pub use portable_intertrait::castable_to;
 }
 //pub use linkme;

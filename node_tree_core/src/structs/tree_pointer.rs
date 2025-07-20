@@ -31,7 +31,7 @@ use std::any::Any;
 use std::marker::PhantomData;
 
 use thiserror::Error;
-use intertrait::cast::*;
+use portable_intertrait::cast::*;
 
 use crate::traits::{ node::Node, node_tree::NodeTree };
 use super::rid::RID;

@@ -170,27 +170,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "intertrait"
-version = "0.2.2"
-source = "git+https://github.com/LunaticWyrm467/intertrait#02cb0bb84d22cee2589861d23cab5b0b3527762b"
-dependencies = [
- "intertrait-macros",
- "linkme",
- "once_cell",
-]
-
-[[package]]
-name = "intertrait-macros"
-version = "0.2.2"
-source = "git+https://github.com/LunaticWyrm467/intertrait#02cb0bb84d22cee2589861d23cab5b0b3527762b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
- "uuid",
-]
-
-[[package]]
 name = "js-sys"
 version = "0.3.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -250,14 +229,14 @@ checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 
 [[package]]
 name = "node_tree"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "chrono",
  "ctor",
  "dashmap",
  "glam",
- "intertrait",
  "node_tree_derive",
+ "portable_intertrait",
  "thiserror",
  "toml_edit",
 ]
@@ -297,6 +276,29 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-targets",
+]
+
+[[package]]
+name = "portable_intertrait"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bd65b3d461ad1413a13ca086091d707a0f282e51eaaa06f05b6ce11914e9562"
+dependencies = [
+ "linkme",
+ "once_cell",
+ "portable_intertrait-macros",
+]
+
+[[package]]
+name = "portable_intertrait-macros"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23a9a4426c40ca7abccc388a626483e169f00e73637159125678a0e6ec2b20f8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+ "uuid",
 ]
 
 [[package]]
