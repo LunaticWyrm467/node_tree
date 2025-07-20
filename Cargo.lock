@@ -229,7 +229,7 @@ checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 
 [[package]]
 name = "node_tree"
-version = "0.13.1"
+version = "0.13.0"
 dependencies = [
  "chrono",
  "ctor",
@@ -280,9 +280,9 @@ dependencies = [
 
 [[package]]
 name = "portable_intertrait"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bd65b3d461ad1413a13ca086091d707a0f282e51eaaa06f05b6ce11914e9562"
+checksum = "d21c465be8d0944e5d6dc9f048f4a76fcd9332f346b18a7c2d2aa99e42c5b4a0"
 dependencies = [
  "linkme",
  "once_cell",
@@ -291,9 +291,9 @@ dependencies = [
 
 [[package]]
 name = "portable_intertrait-macros"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23a9a4426c40ca7abccc388a626483e169f00e73637159125678a0e6ec2b20f8"
+checksum = "37721dbfe81a4ba72d7d1a98bb966c7063bf7a21ee7199832aa52929eb7e5544"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -110,7 +110,4 @@ pub mod startup {
     pub use ctor::ctor;
 }
 
-pub mod dynamics {
-    pub use portable_intertrait::castable_to;
-}
-//pub use linkme;
+pub use portable_intertrait as intertrait;

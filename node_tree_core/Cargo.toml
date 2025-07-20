@@ -1,6 +1,6 @@
 [package]
 name    = "node_tree"
-version = "0.13.1"
+version = "0.13.0"
 edition = "2024"
 
 keywords    = ["framework", "utility", "gamedev"]
@@ -19,7 +19,7 @@ ctor                = "0.2.9" # https://github.com/mmastrac/rust-ctor/issues/309
 toml_edit           = "0.22.22"
 glam                = { version = "0.29.*", optional = true }
 thiserror           = "2.0.12"
-portable_intertrait = "0.3"
+portable_intertrait = "0.4"
 
 [features]
 default = []

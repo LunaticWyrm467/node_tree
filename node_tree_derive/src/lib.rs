@@ -423,7 +423,7 @@ pub fn class(input: TokenStream) -> TokenStream {
     
     let extends = extends.iter().map(|inh_trait| {
         quote! {
-            node_tree::dynamics::castable_to!(#name => node_tree::traits::node::Node, #inh_trait);
+            node_tree::intertrait::castable_to!(crate = node_tree::intertrait | #name => node_tree::traits::node::Node, #inh_trait);
         }
     });
     
