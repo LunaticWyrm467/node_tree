@@ -354,7 +354,14 @@ pub fn tree(input: TokenStream) -> TokenStream {
 pub fn scene(input: TokenStream) -> TokenStream {
     let root:     SceneNode    = syn::parse_macro_input!(input as SceneNode);
     let expanded: TokenStream2 = generate_node(&root);
-    TokenStream::from(expanded)
+
+    TokenStream::from(quote! {
+        {
+            use node_tree::traits::element::AsElement;
+            
+            #expanded
+        }
+    })
 }
 
 

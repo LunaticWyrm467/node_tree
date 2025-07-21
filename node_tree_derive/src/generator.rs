@@ -34,7 +34,7 @@ pub fn generate_node(node: &SceneNode) -> TokenStream2 {
 
             let settings = settings.iter().map(|(key, expr)| {
                 quote! {
-                    node.#key = #expr.into(); // All field types support into().
+                    node.#key = #expr.wrap(); // All field types support wrap() via the `AsElement` trait.
                 }
             });
 
