@@ -1,6 +1,6 @@
 [package]
 name    = "node_tree"
-version = "0.13.2"
+version = "0.14.0"
 edition = "2024"
 
 keywords    = ["framework", "utility", "gamedev"]
@@ -12,7 +12,7 @@ Inspired by Godot!
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-node_tree_derive    = { path = "../node_tree_derive", version = "0.10.1" }
+node_tree_derive    = { path = "../node_tree_derive", version = "0.11.0" }
 chrono              = "0.4.38"
 dashmap             = "6.1.0"
 ctor                = "0.2.9" # https://github.com/mmastrac/rust-ctor/issues/309
@@ -20,6 +20,9 @@ toml_edit           = "0.22.22"
 glam                = { version = "0.29.*", optional = true }
 thiserror           = "2.0.12"
 portable_intertrait = "0.4"
+
+[dev-dependencies]
+doc-comment = "0.3"
 
 [features]
 default = []

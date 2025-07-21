@@ -14,6 +14,7 @@ Simply either run `cargo add node_tree` at the terminal directed towards the dir
 
 To begin creating a program in Rust that utilizes a `NodeTree`, we must first create a root `Node`. In order to reduce boilerplate, we will use the included `class!` macro to implement the required `Dynamic`, `NodeAbstract`, and `Node` traits.
 ```rust
+use std::ffi::c_void;
 use node_tree::prelude::*;
 
 
@@ -23,19 +24,18 @@ class! {
     declare NodeA;
 
     // Fields are declared as such:
-    let given_name: String;
+    let id: u32;
 
-    // Fields can have custom attributes.
-    default let default_field:  u8; // Initialized as its default value.
-    export  let saveable_field: String; // Can also be `export default` if the value supports it.
-    unique  let unique_field:   *mut c_void; // Value that is not cloned with the node.
+    // Fields can have custom attributes, and can also have default values (either implicit via `default` or explicit).
+    default let default_field: u8; // Initialized as its default value.
+    export  let savable_field: String      = "Hello, World!".to_string(); // Can also be `export default` if the value supports it.
+    unique  let unique_field:  *mut c_void = todo!(); // Value that is not cloned with the node.
     
     // Overrideable system functions are known as hooks and start with `hk`.
 
-    /// Constructors are declared via `_init()`. These will automatically generate a
-    // `new()` function.
-    hk _init(given_name: String) {} // Fields are initialized by introducing a variable
-                                    // of the same name into scope.
+    /// Constructors are declared via `_init()`. These will automatically generate a `new()` function.
+    /// Fields are initialized by introducing a variable of the same name into scope.
+    hk _init(id: u32) {}
     
     /// Runs right before the `ready()` function for a `Node` that was loaded from the disk,
     /// when said node is added back to the scene tree.
@@ -50,9 +50,9 @@ class! {
         if self.depth() < 3 {
             let new_depth: usize = self.depth() + 1;
             
-            self.add_child(NodeA::new(format!("{}_Node", new_depth)));
-            self.add_child(NodeA::new(format!("{}_Node", new_depth)));
-            self.add_child(NodeA::new(format!("{}_Node", new_depth)));
+            self.add_child(NodeA::new(new_depth as u32));
+            self.add_child(NodeA::new(new_depth as u32));
+            self.add_child(NodeA::new(new_depth as u32));
         }
 
         if self.is_root() {
@@ -97,7 +97,7 @@ class! {
 ```
 
 Finally, in order to activate our `NodeTree`, we must instance the root `Node` and feed it into the `NodeTree` constructor.
-```rust
+```rust,ignore
 // ...previous implementations
 use node_tree::trees::TreeSimple;
 
@@ -105,7 +105,7 @@ use node_tree::trees::TreeSimple;
 fn main() -> () {
 
     // Create the tree.
-    let root: NodeA           = NodeA::new("Root".to_string());
+    let root: NodeA           = NodeA::new(0);
     let tree: Box<TreeSimple> = TreeSimple::new(root, LoggerVerbosity::NoDebug);
 
     // Begin operations on the tree.
@@ -115,32 +115,41 @@ fn main() -> () {
 
 ## Node Scenes
 You may also input a `NodeScene` when initializing a `NodeTree` or adding a child via `add_child`:
-```rust
+```rust, ignore
 use node_tree::prelude::*;
 
 
 let child_scene: NodeScene = scene! {
-    NodeA(3): "2_Node" { // Arguments can be fed right in the scene! macro, followed by the name (optional) and children.
+    NodeA(3): "2_Node" [ // Arguments can be fed right in the scene! macro, followed by the name (optional) and children.
         NodeA(4): "3_Node",
         NodeA(5): "3_Node",
-        NodeA(6): "3_Node" {
+        NodeA(6): "3_Node" [
             NodeA(7): "4_Node",
             NodeA(8): "4_Node"
-        }
-    }
+        ]
+    ]
 };
 let parent_scene: NodeScene = scene! {
-    NodeA(2): "1_Node" {
+    NodeA(2): "1_Node" [
         $child_scene, // You can use `$` to reference other scenes as children.
         $child_scene,
-        $child_scene,
-    }
+        $child_scene
+    ]
 };
 let scene: NodeScene = scene! {
     NodeA(1): "Root" {
-        $parent_scene,
-        $parent_scene,
-        $parent_scene,
+
+        // You can also initialise the node's public fields.
+        default_field:  1,
+        saveable_field: "Hello World!".to_string(),
+        unique_field:   todo!(),
+        
+        // And the children can be initialised along with the fields.
+        [
+            $parent_scene,
+            $parent_scene,
+            $parent_scene
+        ]
     }
 };
 
@@ -163,7 +172,7 @@ assert_eq!(scene.structural_hash(), loaded_scene.structural_hash());
 
 ## Logging
 Logging is also supported. Here is an example setup with an output of a warning and a crash. Note that the crash header/footer are customizable, and that the output is actually colored in a real terminal.
-```rust
+```rust, should_panic
 use node_tree::prelude::*;
 use node_tree::trees::TreeSimple;
 
@@ -185,15 +194,15 @@ class! {
 
 fn main() {
     let scene: NodeScene = scene! {
-        NodeA {
+        NodeA [
             NodeA,
             NodeA,
-            NodeA {
+            NodeA [
                 NodeA,
                 NodeA,
                 NodeA
-            }
-        }
+            ]
+        ]
     };
 
     let mut tree: Box<TreeSimple> = TreeSimple::new(scene, LoggerVerbosity::All);
@@ -205,7 +214,7 @@ fn main() {
 
 ## Signals
 Signals are introduced in order to allow for easy communication between various nodes. An example is shown below:
-```rust
+```rust, should_panic
 use node_tree::prelude::*;
 use node_tree::trees::TreeSimple;
 
@@ -242,9 +251,9 @@ class! {
 
 fn main() {
     let scene: NodeScene = scene! {
-        NodeA {
+        NodeA [
             NodeB
-        }
+        ]
     };
 
     let mut tree: Box<TreeSimple> = TreeSimple::new(scene, LoggerVerbosity::All);
@@ -255,6 +264,8 @@ fn main() {
 ## Proto-Inheritance with Traits
 Rust does not support inheritance in a typical sense, so this crate attempts to emulate core aspects of it that are important to scene graphs.
 ```rust
+use node_tree::prelude::*;
+
 
 // We define a trait that has a specific behaviour for a group of node classes. This can be useful for UI nodes, physics nodes, or nodes
 // that we would wish to iterate in a generic setting and otherwise access some sort of generalised behaviour.
@@ -315,13 +326,13 @@ class! {
 }
 ```
 In order for this specific example to work, the scene is assumed to be in this layout:
-```rust
+```rust,ignore
 let scene: NodeScene = scene! {
-    ControlNode {
+    ControlNode [
         AttributeNode1,
         AttributeNode2,
         AttributeNode3
-    }
+    ]
 };
 ```
 

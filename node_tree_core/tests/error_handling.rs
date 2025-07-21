@@ -21,15 +21,15 @@ class! {
 #[should_panic]
 fn test_tree_pointer() {
     let scene: NodeScene = scene! {
-        NodeA {
+        NodeA [
             NodeA,
             NodeA,
-            NodeA {
+            NodeA [
                 NodeA,
                 NodeA,
                 NodeA
-            }
-        }
+            ]
+        ]
     };
 
     let mut tree: Box<TreeSimple> = TreeSimple::new(scene, LoggerVerbosity::All);

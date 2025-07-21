@@ -111,3 +111,6 @@ pub mod startup {
 }
 
 pub use portable_intertrait as intertrait;
+
+#[cfg(doctest)]
+doc_comment::doctest!("../README.md");

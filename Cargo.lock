@@ -101,6 +101,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "doc-comment"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -229,11 +235,12 @@ checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 
 [[package]]
 name = "node_tree"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "chrono",
  "ctor",
  "dashmap",
+ "doc-comment",
  "glam",
  "node_tree_derive",
  "portable_intertrait",
@@ -243,7 +250,7 @@ dependencies = [
 
 [[package]]
 name = "node_tree_derive"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "proc-macro2",
  "quote",

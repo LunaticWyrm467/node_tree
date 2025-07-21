@@ -44,9 +44,9 @@ class! {
 #[should_panic]
 fn test_signals() {
     let scene: NodeScene = scene! {
-        NodeA {
+        NodeA [
             NodeB
-        }
+        ]
     };
 
     let mut tree: Box<TreeSimple> = TreeSimple::new(scene, LoggerVerbosity::All);

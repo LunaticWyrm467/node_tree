@@ -27,11 +27,11 @@ class! {
 #[test]
 fn test_signals() {
     let scene: NodeScene = scene! {
-        ControlNode {
+        ControlNode [
             AttributeNode1,
             AttributeNode2,
             AttributeNode3
-        }
+        ]
     };
 
     let mut tree: Box<TreeSimple> = TreeSimple::new(scene, LoggerVerbosity::All);

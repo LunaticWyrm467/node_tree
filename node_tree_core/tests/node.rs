@@ -11,25 +11,25 @@ fn test_node_integration() {
 
     // Initialize the NodeScene.
     let child_scene: NodeScene = scene! {
-        NodeA(3): "2_Node" {
+        NodeA(3): "2_Node" [
             NodeA(4): "3_Node",
             NodeA(5): "3_Node",
             NodeA(6): "3_Node"
-        }
+        ]
     };
     let parent_scene: NodeScene = scene! {
-        NodeA(2): "1_Node" {
+        NodeA(2): "1_Node" [
             $child_scene,
             $child_scene,
             $child_scene,
-        }
+        ]
     };
     let scene: NodeScene = scene! {
-        NodeA(1): "Root" {
+        NodeA(1): "Root" [
             $parent_scene,
             $parent_scene,
             $parent_scene,
-        }
+        ]
     };
 
     // Create the tree.

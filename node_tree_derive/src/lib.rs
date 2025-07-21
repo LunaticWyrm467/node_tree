@@ -97,7 +97,7 @@ pub fn r#abstract(input: TokenStream) -> TokenStream {
                 self
             }
 
-            fn clone_as_instance(&self) -> Box<dyn Node> {
+            fn clone_as_instance(&self) -> Box<dyn node_tree::traits::node::Node> {
                 Box::new(self.clone())
             }
 
@@ -179,7 +179,7 @@ pub fn derive_registered(input: TokenStream) -> TokenStream {
 
     let static_name: syn::Ident   = syn::Ident::new(&format!("__static_init_{}", name.to_string().to_lowercase()), name.span());
     let expanded:    TokenStream2 = quote! {
-        impl Registered for #name {
+        impl node_tree::traits::registered::Registered for #name {
             fn save_from_owned(&self) -> node_tree::services::node_registry::FieldMap {
                 let mut map = node_tree::services::node_registry::FieldMap::new();
                 #(
@@ -203,6 +203,8 @@ pub fn derive_registered(input: TokenStream) -> TokenStream {
         // Runs before main.
         #[node_tree::startup::ctor]
         unsafe fn #static_name() {
+            use node_tree::prelude::Registered;
+            
             node_tree::services::node_registry::register_deserializer(std::any::type_name::<#name>().into(), Box::new(|s_field_map| {
                 let node: #name = #name::load_from_owned(s_field_map)?;
                 Ok(Box::new(node) as Box<dyn node_tree::traits::node::Node>)
@@ -309,32 +311,43 @@ pub fn tree(input: TokenStream) -> TokenStream {
 /// use node_tree::prelude::*;
 ///
 /// let scene: NodeScene = scene! {
-///     OwnerNode {
+///     OwnerNode [
 ///         NodeWithNoArgs,
-///         NodeWithOneArg(1),
-///         NodeWithTwoArgs(1, "two"),
-///         NodeWithChildren {
+///         NodeWithArgs(1, "two"), // Required when _init() is defined with arguments.
+///         NodeWithSettings {
+///            field1: "value1", // These are public fields that are set on the node.
+///            field2: 2
+///         },
+///         NodeWithChildren [
 ///             Foo,
 ///             Bar
+///         ],
+///         NodeWithChildrenAndSettings {
+///             field1: "value1",
+///             field2: 2,
+///             [
+///                 Foo,
+///                 Bar
+///             ]
 ///         }
-///     }
+///     ]
 /// };
 ///
 /// let named_scene: NodeScene = scene! {
-///     Owner: "Owner" {
+///     Owner: "Owner" [
 ///         Child: "ChildA",
 ///         Child: "ChildB"
-///     }
+///     ]
 /// };
 ///
 /// let complex_scene: NodeScene = scene! {
-///     RootNode {
+///     RootNode [
 ///         NodeA,
-///         NodeB {
+///         NodeB [
 ///             NodeC,
 ///             $scene // Links a scene with the name following `$` to that position...
-///         }
-///     }
+///         ]
+///     ]
 /// };
 /// ```
 #[proc_macro]

@@ -39,16 +39,16 @@ class! {
 #[test]
 fn test_nodepaths() {
     let scene: NodeScene = scene! {
-        Unit: "Grandparent" {
-            Unit: "Parent" {
-                Crawler: "Self" {
-                    Unit: "Child" {
+        Unit: "Grandparent" [
+            Unit: "Parent" [
+                Crawler: "Self" [
+                    Unit: "Child" [
                         Unit: "Grandchild"
-                    }
-                },
+                    ]
+                ],
                 Unit: "Sibling"
-            }
-        }
+            ]
+        ]
     };
 
     let mut tree: Box<TreeSimple> = TreeSimple::new(scene, LoggerVerbosity::All);

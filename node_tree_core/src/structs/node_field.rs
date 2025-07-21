@@ -97,6 +97,12 @@ impl <T> Field<T> {
     }
 }
 
+impl <T> From<T> for Field<T> {
+    fn from(item: T) -> Self {
+        Field::Valid(item)
+    }
+}
+
 impl <T: Clone> Clone for Field<T> {
     fn clone(&self) -> Self {
         match self {
@@ -279,6 +285,12 @@ impl <T: Exportable> ExportableField<T> {
     /// Creates a new `ExportableField<T>`.
     pub fn new(item: T) -> Self {
         Self(item)
+    }
+}
+
+impl <T: Exportable> From<T> for ExportableField<T> {
+    fn from(item: T) -> Self {
+        ExportableField(item)
     }
 }
 
@@ -503,6 +515,12 @@ impl <T> UniqueField<T> {
     }
 }
 
+impl <T> From<T> for UniqueField<T> {
+    fn from(item: T) -> Self {
+        UniqueField::Valid(item)
+    }
+}
+
 impl <T> Clone for UniqueField<T> {
     fn clone(&self) -> Self {
         Self::Void
@@ -683,6 +701,12 @@ impl <T: Default> DefaultField<T> {
     /// Creates a new `DefaultField<T>`.
     pub fn new(item: T) -> Self {
         Self(item)
+    }
+}
+
+impl <T: Default> From<T> for DefaultField<T> {
+    fn from(item: T) -> Self {
+        DefaultField(item)
     }
 }
 

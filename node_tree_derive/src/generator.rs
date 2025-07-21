@@ -17,7 +17,7 @@ pub fn generate_node(node: &SceneNode) -> TokenStream2 {
                 #with.clone()
             }
         },
-        SceneNode::Node { node_type, params, name, children } => {
+        SceneNode::Node { node_type, params, settings, name, children } => {
             let params: TokenStream2 = match params {
                 Some(p) => quote! { (#p) },
                 None    => quote! { () },
@@ -32,10 +32,18 @@ pub fn generate_node(node: &SceneNode) -> TokenStream2 {
             };
             let children: Vec<TokenStream2> = children.iter().map(generate_node).collect();
 
+            let settings = settings.iter().map(|(key, expr)| {
+                quote! {
+                    node.#key = #expr.into(); // All field types support into().
+                }
+            });
+
             quote! {
                 {
                     let mut node: #node_type = #node_type::new #params;
                     #name_set
+
+                    #(#settings)*
                                         
                     let mut scene: NodeScene = NodeScene::new(node);
                     #(

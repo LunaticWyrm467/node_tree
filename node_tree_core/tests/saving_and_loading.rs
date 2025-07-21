@@ -50,10 +50,10 @@ fn test_writing_to_disk() {
     
     // Create a scene and save it.
     let scene: NodeScene = scene! {
-        NodeA {
+        NodeA [
             NodeB,
             NodeC
-        }
+        ]
     };
     scene.save(Path::new(""), "foo").unwrap();
     
@@ -77,12 +77,12 @@ class! {
         
         // Create the exact scene and get it's hash.
         let model_scene: NodeScene = scene! {
-            Root {
-                NodeA {
+            Root [
+                NodeA [
                     NodeB,
                     NodeB
-                }
-            }
+                ]
+            ]
         };
         let model_hash: u64 = model_scene.structural_hash();
         
@@ -104,12 +104,12 @@ fn test_branch_saving() {
     
     // Create a scene and simulate it.
     let scene: NodeScene = scene! {
-        Root {
-            NodeA {
+        Root [
+            NodeA [
                 NodeB,
                 NodeB
-            }
-        }
+            ]
+        ]
     };
 
     let mut tree: Box<TreeSimple> = TreeSimple::new(scene, LoggerVerbosity::All);

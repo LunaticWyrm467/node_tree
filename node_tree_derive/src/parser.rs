@@ -12,10 +12,11 @@ use syn::punctuated as punc;
 pub enum SceneNode {
     Link (syn::Ident),
     Node {
-        node_type: syn::Ident,
+        node_type: syn::Path,
         params:    Option<punc::Punctuated<syn::Expr, tok::Comma>>,
+        settings:  Vec<(syn::Ident, syn::Expr)>,
         name:      Option<syn::LitStr>,
-        children:  Vec<SceneNode>,
+        children:  Vec<SceneNode>
     }
 }
 
@@ -27,10 +28,10 @@ impl Parse for SceneNode {
             input.parse::<Token![$]>()?;
             Ok(SceneNode::Link(input.parse()?))
         } else {
-            let node_type: syn::Ident = input.parse()?;
+            let node_type: syn::Path = input.parse()?;
 
             // Parse optional parameters
-            let params: Option<punc::Punctuated<syn::Expr, tok::Comma>> = if input.peek(syn::token::Paren) {
+            let params: Option<punc::Punctuated<syn::Expr, tok::Comma>> = if input.peek(tok::Paren) {
                 let content;
                 syn::parenthesized!(content in input);
                 Some(punc::Punctuated::parse_terminated(&content)?)
@@ -40,28 +41,74 @@ impl Parse for SceneNode {
 
             // Parse a name if given.
             let mut name: Option<syn::LitStr> = None;
-            if input.peek(tok::Colon) {
-                input.parse::<tok::Colon>()?;
+            if input.peek(Token![:]) {
+                input.parse::<Token![:]>()?;
                 name = Some(input.parse()?);
             }
-            
-            // Parse children.
-            let mut children: Vec<SceneNode> = Vec::new();
+
+            // Determine how to parse this going foward:
+            // If there is a brace, then this is a node with settings and potentially children.
+            // Otherwise, if there is a square bracket, then we just skip to parsing children.
+            let mut settings: Vec<(syn::Ident, syn::Expr)> = Vec::new();
+            let mut children: Vec<SceneNode>               = Vec::new();
+
+            fn parse_children(input: &ParseStream) -> syn::Result<Vec<SceneNode>> {
+                let mut children: Vec<SceneNode> = Vec::new();
+                
+                // Parse children.
+                if input.peek(tok::Bracket) {
+                    let content;
+                    syn::bracketed!(content in input);
+
+                    while !content.is_empty() {
+                        children.push(content.parse()?);
+                        if !content.is_empty() {
+                            content.parse::<Token![,]>()?;
+                        }
+                    }
+                }
+
+                Ok(children)
+            }
+
+            // Parse settings and potentially children.
             if input.peek(tok::Brace) {
                 let content;
                 syn::braced!(content in input);
 
-                while !content.is_empty() {
-                    children.push(content.parse()?);
-                    if !content.is_empty() {
+                loop {
+                    if content.peek(syn::Ident) {
+                        let key:    syn::Ident = content.parse()?;
+                        let _colon: tok::Colon = content.parse()?;
+                        let value:  syn::Expr  = content.parse()?;
+
+                        settings.push((key, value));
+                    }
+
+                    if content.peek(Token![,]) {
                         content.parse::<Token![,]>()?;
+                    } else {
+                        break;
                     }
                 }
+
+                // If there is a square bracket, parse children.
+                if content.peek(tok::Bracket) {
+                    children = parse_children(&&content)?;
+                }
             }
+            
+            // Only parse children.
+            else if input.peek(tok::Bracket) {
+                children = parse_children(&input)?;
+            }
+            
+            
 
             Ok(SceneNode::Node {
                 node_type,
                 params,
+                settings,
                 name,
                 children,
             })
